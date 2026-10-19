@@ -1,25 +1,71 @@
-# Site vétérinaire – Docteur Vétérinaire, Annexe Oued Romane
+# Site du cabinet vétérinaire – Annexe Oued Romane
 
-React + TypeScript + Tailwind (Vite).
+Site public (Accueil, Services, À propos, Galerie, Contact + demande de rendez-vous) et espace sécurisé du vétérinaire (fiches clients/animaux, demandes de rendez-vous).
+
+- Frontend : React + TypeScript + Tailwind (Vite)
+- Backend : Node + Express + MongoDB (Mongoose) dans le dossier `server/`
+- Connexion réelle : mot de passe haché (bcrypt), session par cookie `httpOnly`
+
+## Prérequis
+
+- Node.js 18 ou plus
+- MongoDB en local ([MongoDB Community](https://www.mongodb.com/try/download/community)) **ou** une base Atlas (gratuite)
+
+## Installation (une seule fois)
 
 ```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run build
+npm run install:all          # installe le site ET le serveur
+cp server/.env.example server/.env
+npm run set-password --prefix server   # choisit le mot de passe du vétérinaire (8 caractères min.)
 ```
 
-## Pages
-Publiques : `/`, `/services`, `/a-propos`, `/galerie`, `/contact`
-Espace vétérinaire : `/admin` (fiches), `/admin/fiches/:id` (créer / modifier / supprimer), `/admin/rendez-vous`
+Dans `server/.env` : `MONGODB_URI` (par défaut `mongodb://127.0.0.1:27017/vet-site`), `PORT` (4000).
 
-## Espace vétérinaire
-- Mot de passe provisoire : `veto2026` (à changer : variable `VITE_ADMIN_PASSWORD` dans un fichier `.env`)
-- Créer, modifier, supprimer une fiche (avec confirmation), historique médical, recherche, filtre par espèce
-- Les demandes envoyées depuis la page Contact arrivent dans « Rendez-vous » : confirmer, refuser, supprimer, ou créer la fiche pré-remplie
+## Développement
 
-## Important : stockage actuel
-Les données sont enregistrées dans le navigateur (localStorage, voir `src/store.tsx`), pas dans une base de données.
-Elles sont donc propres à chaque navigateur/ordinateur, et le mot de passe n'est pas une vraie sécurité.
-Étape suivante : une API (Node + MongoDB) avec connexion sécurisée. Il suffira de remplacer le contenu de `src/store.tsx` et `src/auth.ts`.
+```bash
+npm run dev:all
+```
 
-Logo : `public/logo-white.png` (fonds bleus) et `public/logo-blue.png` (fonds clairs).
+Le site tourne sur http://localhost:5173 et l'API est appelée automatiquement via `/api`.
+Espace vétérinaire : http://localhost:5173/admin
+
+Données d'exemple (facultatif) : `npm run seed --prefix server`
+
+## Utilisation au cabinet (un seul processus)
+
+```bash
+npm run build:all
+npm start
+```
+
+Le serveur sert le site et l'API sur http://localhost:4000.
+
+## Sauvegardes
+
+- **Radios et images** : elles sont enregistrées comme fichiers dans le dossier `server/uploads/` (pas dans le JSON de sauvegarde). Copie ce dossier en même temps que le fichier JSON.
+- Bouton « Sauvegarde » dans l'espace vétérinaire : télécharge `sauvegarde-veto-AAAA-MM-JJ.json`.
+- Restauration : `npm run restore --prefix server -- chemin/vers/sauvegarde.json`
+- Faire une sauvegarde régulièrement (clé USB / autre disque), surtout avec une base locale.
+
+## Sécurité
+
+- Mot de passe haché (bcrypt), jamais stocké en clair ; changer : `npm run set-password --prefix server`.
+- Cookie `httpOnly`, `SameSite=Strict`, session de 12 h ; 10 tentatives de connexion max / 15 min.
+- Toutes les routes de fiches/RDV/export exigent la connexion.
+- Formulaire de RDV public : validé côté serveur, limité (10 / h), champ anti-robot.
+- **Si le site est mis en ligne** : utiliser HTTPS et mettre `COOKIE_SECURE=true` dans `server/.env`.
+
+## Déploiement : à décider
+
+Les fiches sont sensibles. Deux options : tout sur le PC du cabinet (simple, non public), ou site public en ligne avec une base hébergée (Atlas) et HTTPS.
+
+## API
+
+| Route                                                               | Accès            |
+| ------------------------------------------------------------------- | ---------------- |
+| POST `/api/auth/login`, POST `/api/auth/logout`, GET `/api/auth/me` | public / session |
+| POST `/api/rdv`                                                     | public           |
+| GET/POST `/api/fiches`, GET/PUT/DELETE `/api/fiches/:id`            | connecté         |
+| GET `/api/rdvs`, PATCH/DELETE `/api/rdvs/:id`                       | connecté         |
+| GET `/api/export`                                                   | connecté         |
