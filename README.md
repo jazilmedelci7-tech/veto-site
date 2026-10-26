@@ -1,25 +1,28 @@
-# Site du cabinet vétérinaire – Annexe Oued Romane
+# Site de cabinet vétérinaire (modèle pour plusieurs clients)
 
-Site public (Accueil, Services, À propos, Galerie, Contact + demande de rendez-vous) et espace sécurisé du vétérinaire (fiches clients/animaux, demandes de rendez-vous).
+Site public (Accueil, Services, Contact + demande de rendez-vous) et espace sécurisé du vétérinaire (fiches clients et animaux, rendez-vous, rappels de vaccin, sauvegarde).
 
 - Frontend : React + TypeScript + Tailwind (Vite)
-- Backend : Node + Express + MongoDB (Mongoose) dans le dossier `server/`
-- Connexion réelle : mot de passe haché (bcrypt), session par cookie `httpOnly`
+- Backend : Node + Express + MongoDB (Mongoose) dans `server/`
+- Connexion : mot de passe chiffré (bcrypt), session par cookie `httpOnly`
+
+**Vendre à un nouveau client : lis [VENDRE.md](VENDRE.md).** Tout ce qui est propre à un client est dans `clients/<nom>/`.
 
 ## Prérequis
 
 - Node.js 18 ou plus
-- MongoDB en local ([MongoDB Community](https://www.mongodb.com/try/download/community)) **ou** une base Atlas (gratuite)
+- MongoDB en local ([MongoDB Community](https://www.mongodb.com/try/download/community)) ou MongoDB Atlas (gratuit)
 
 ## Installation (une seule fois)
 
 ```bash
-npm run install:all          # installe le site ET le serveur
+npm run install:all
 cp server/.env.example server/.env
-npm run set-password --prefix server   # choisit le mot de passe du vétérinaire (8 caractères min.)
+cp .env.example .env              # puis mets CLIENT=<nom du dossier dans clients/>
 ```
 
-Dans `server/.env` : `MONGODB_URI` (par défaut `mongodb://127.0.0.1:27017/vet-site`), `PORT` (4000).
+Au premier accès à `/admin`, le vétérinaire crée lui-même son mot de passe (il peut le changer dans le menu « Mot de passe »).
+Mot de passe oublié : `npm run set-password --prefix server`.
 
 ## Développement
 
@@ -27,12 +30,10 @@ Dans `server/.env` : `MONGODB_URI` (par défaut `mongodb://127.0.0.1:27017/vet-s
 npm run dev:all
 ```
 
-Le site tourne sur http://localhost:5173 et l'API est appelée automatiquement via `/api`.
-Espace vétérinaire : http://localhost:5173/admin
+Site : http://localhost:5173 · Espace vétérinaire : http://localhost:5173/admin
+Le client affiché est celui de la variable `CLIENT` dans le fichier `.env` de la racine (par défaut : `modele`).
 
-Données d'exemple (facultatif) : `npm run seed --prefix server`
-
-## Utilisation au cabinet (un seul processus)
+## Utilisation avec un seul processus
 
 ```bash
 npm run build:all
@@ -43,29 +44,26 @@ Le serveur sert le site et l'API sur http://localhost:4000.
 
 ## Sauvegardes
 
-- **Radios et images** : elles sont enregistrées comme fichiers dans le dossier `server/uploads/` (pas dans le JSON de sauvegarde). Copie ce dossier en même temps que le fichier JSON.
-- Bouton « Sauvegarde » dans l'espace vétérinaire : télécharge `sauvegarde-veto-AAAA-MM-JJ.json`.
+- **Radios et images** : fichiers dans `server/uploads/` (ou dans `UPLOADS_DIR`), pas dans le fichier JSON. Copie ce dossier avec le JSON.
+- Bouton « Télécharger une sauvegarde » : `sauvegarde-veto-AAAA-MM-JJ.json`.
 - Restauration : `npm run restore --prefix server -- chemin/vers/sauvegarde.json`
-- Faire une sauvegarde régulièrement (clé USB / autre disque), surtout avec une base locale.
+- Sauvegarde régulière (clé USB, autre disque, Drive). Un rappel s'affiche après 7 jours sans sauvegarde.
 
 ## Sécurité
 
-- Mot de passe haché (bcrypt), jamais stocké en clair ; changer : `npm run set-password --prefix server`.
-- Cookie `httpOnly`, `SameSite=Strict`, session de 12 h ; 10 tentatives de connexion max / 15 min.
-- Toutes les routes de fiches/RDV/export exigent la connexion.
-- Formulaire de RDV public : validé côté serveur, limité (10 / h), champ anti-robot.
-- **Si le site est mis en ligne** : utiliser HTTPS et mettre `COOKIE_SECURE=true` dans `server/.env`.
-
-## Déploiement : à décider
-
-Les fiches sont sensibles. Deux options : tout sur le PC du cabinet (simple, non public), ou site public en ligne avec une base hébergée (Atlas) et HTTPS.
+- Mot de passe chiffré, jamais stocké en clair ; créé puis modifié par le vétérinaire dans le site (en ligne : code d'activation `SETUP_CODE`).
+- Cookie `httpOnly`, `SameSite=Strict`, session de 12 h ; 10 tentatives de connexion maximum par 15 min.
+- Toutes les routes de fiches, rendez-vous et export exigent la connexion.
+- Formulaire de rendez-vous public : validé côté serveur, limité (10 par heure), champ anti-robot.
+- En ligne : HTTPS, `COOKIE_SECURE=true`, `TRUST_PROXY=1`.
 
 ## API
 
-| Route                                                               | Accès            |
-| ------------------------------------------------------------------- | ---------------- |
-| POST `/api/auth/login`, POST `/api/auth/logout`, GET `/api/auth/me` | public / session |
-| POST `/api/rdv`                                                     | public           |
-| GET/POST `/api/fiches`, GET/PUT/DELETE `/api/fiches/:id`            | connecté         |
-| GET `/api/rdvs`, PATCH/DELETE `/api/rdvs/:id`                       | connecté         |
-| GET `/api/export`                                                   | connecté         |
+| Route | Accès |
+|---|---|
+| POST `/api/auth/login`, `/api/auth/setup`, `/api/auth/logout`, GET `/api/auth/status`, `/api/auth/me` | public / session |
+| POST `/api/auth/change-password` | connecté |
+| POST `/api/rdv` | public |
+| GET/POST `/api/fiches`, GET/PUT/DELETE `/api/fiches/:id` | connecté |
+| GET `/api/rdvs`, PATCH/DELETE `/api/rdvs/:id` | connecté |
+| GET `/api/export`, GET `/api/backup-status` | connecté |

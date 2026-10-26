@@ -1,5 +1,5 @@
-import { config } from "./Config.js";
-import { Fiche, Setting } from "./Models.js";
+import { config } from "./config.js";
+import { Fiche, Setting } from "./models.js";
 
 const two = (n: number) => String(n).padStart(2, "0");
 const localDay = (d = new Date()) =>
@@ -10,8 +10,27 @@ const dayNumber = (s: string) => {
 };
 const fr = (s: string) => s.split("-").reverse().join("/");
 
-export const notificationsEnabled = () =>
-  Boolean(config.telegramToken && config.telegramChatId);
+export interface TelegramConf {
+  token: string;
+  chatId: string;
+}
+
+/** Réglage Telegram : d'abord celui enregistré depuis le site (page Notifications), sinon celui de server/.env. */
+export async function telegramConf(): Promise<
+  (TelegramConf & { source: "site" | "env" }) | null
+> {
+  const token = await getSetting("telegramToken"),
+    chatId = await getSetting("telegramChatId");
+  if (token && chatId) return { token, chatId, source: "site" };
+  if (config.telegramToken && config.telegramChatId)
+    return {
+      token: config.telegramToken,
+      chatId: config.telegramChatId,
+      source: "env",
+    };
+  return null;
+}
+export const notificationsEnabled = async () => (await telegramConf()) !== null;
 
 export interface RappelDu {
   key: string;
@@ -52,16 +71,16 @@ export async function rappelsProches(): Promise<RappelDu[]> {
   return out.sort((a, b) => a.jours - b.jours);
 }
 
-export async function sendTelegram(text: string) {
-  const res = await fetch(
-    `${config.telegramApi}/bot${config.telegramToken}/sendMessage`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: config.telegramChatId, text }),
-      signal: AbortSignal.timeout(15000),
-    },
-  );
+export async function sendTelegram(text: string, conf?: TelegramConf) {
+  const c = conf ?? (await telegramConf());
+  if (!c)
+    throw new Error("Les notifications Telegram ne sont pas configurées.");
+  const res = await fetch(`${config.telegramApi}/bot${c.token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: c.chatId, text }),
+    signal: AbortSignal.timeout(15000),
+  });
   if (!res.ok) {
     let detail = "";
     try {
@@ -83,6 +102,58 @@ async function setSetting(key: string, value: string) {
   await Setting.updateOne({ key }, { $set: { value } }, { upsert: true });
 }
 
+/** Enregistre le jeton et l'identifiant de discussion choisis par le vétérinaire (après un message de test réussi). */
+export async function saveTelegram(c: TelegramConf) {
+  await setSetting("telegramToken", c.token);
+  await setSetting("telegramChatId", c.chatId);
+}
+export async function clearTelegram() {
+  await Setting.deleteMany({
+    key: { $in: ["telegramToken", "telegramChatId"] },
+  });
+}
+
+/** Trouve l'identifiant du compte qui a écrit au bot (le vétérinaire doit lui avoir envoyé un message). */
+export async function detectChatId(
+  token: string,
+): Promise<{ chatId: string; nom: string }> {
+  const res = await fetch(`${config.telegramApi}/bot${token}/getUpdates`, {
+    signal: AbortSignal.timeout(15000),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    description?: string;
+    result?: {
+      message?: {
+        chat?: {
+          id?: number;
+          type?: string;
+          first_name?: string;
+          title?: string;
+        };
+      };
+    }[];
+  };
+  if (!res.ok || !json.ok)
+    throw new Error(
+      res.status === 401 || res.status === 404
+        ? "Jeton invalide : vérifie que tu as bien copié tout le jeton donné par BotFather."
+        : `Telegram a refusé la demande (${res.status}) ${json.description ?? ""}`.trim(),
+    );
+  const chats = (json.result ?? [])
+    .map((u) => u.message?.chat)
+    .filter(
+      (c): c is NonNullable<typeof c> =>
+        !!c && typeof c.id === "number" && c.type === "private",
+    );
+  const last = chats[chats.length - 1];
+  if (!last)
+    throw new Error(
+      "Aucun message trouvé. Ouvre ton bot dans Telegram, appuie sur « Démarrer », envoie « Bonjour », puis réessaie.",
+    );
+  return { chatId: String(last.id), nom: last.first_name ?? last.title ?? "" };
+}
+
 /** Envoie les rappels qui n'ont pas encore été signalés. Renvoie le nombre de rappels envoyés. */
 export async function envoyerRappels(): Promise<number> {
   const deja = new Set<string>(
@@ -99,12 +170,12 @@ export async function envoyerRappels(): Promise<number> {
 
 /** Vérifie chaque minute : une fois par jour, à partir de l'heure choisie, signale les nouveaux rappels. */
 export function startNotifier() {
-  if (!notificationsEnabled()) return;
   let retryAt = 0;
   const tick = async () => {
     const now = new Date();
     if (now.getHours() < config.notifyHour || Date.now() < retryAt) return;
     try {
+      if (!(await notificationsEnabled())) return; // pas (encore) configuré : on réessaie à la prochaine minute
       const day = localDay(now);
       if ((await getSetting("notifyLastDay")) === day) return;
       const n = await envoyerRappels();
@@ -121,6 +192,6 @@ export function startNotifier() {
   setInterval(() => void tick(), 60 * 1000);
   void tick();
   console.log(
-    `Notifications Telegram activées : chaque jour à partir de ${config.notifyHour} h, ${config.notifyDaysBefore} jour(s) avant la date du rappel.`,
+    `Notifications Telegram : vérification chaque jour à partir de ${config.notifyHour} h (si elles sont configurées dans le site), ${config.notifyDaysBefore} jour(s) avant la date du rappel.`,
   );
 }

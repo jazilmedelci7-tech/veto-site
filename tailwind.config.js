@@ -2,7 +2,12 @@
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: { extend: {
-    colors: { brand: { DEFAULT: '#1D3FA8', dark: '#0F1F4D', light: '#F3F6FC', soft: '#DCE5F7', line: '#D5DDF0', muted: '#4A5878' } },
+    colors: { brand: {
+      // Les couleurs viennent du réglage « couleur » du client (voir src/site.ts, variables CSS posées dans main.tsx)
+      DEFAULT: 'rgb(var(--brand, 29 63 168) / <alpha-value>)', dark: 'rgb(var(--brand-dark, 12 25 67) / <alpha-value>)',
+      light: 'rgb(var(--brand-light, 243 246 252) / <alpha-value>)', soft: 'rgb(var(--brand-soft, 220 229 247) / <alpha-value>)',
+      line: 'rgb(var(--brand-line, 213 221 240) / <alpha-value>)', muted: 'rgb(var(--brand-muted, 74 88 120) / <alpha-value>)',
+    } },
     fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
     keyframes: {
       fadeUp: { '0%': { opacity: '0', transform: 'translateY(24px)' }, '100%': { opacity: '1', transform: 'none' } },

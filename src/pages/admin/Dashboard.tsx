@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fmt, nextRappel, rappelState } from "../../data";
 import { RappelBadge } from "./FicheView";
-import { WhatsAppButton } from "../../components/Whatsappbutton";
-import { rappelMessage } from "../../Whatsapp";
+import { WhatsAppButton } from "../../components/WhatsAppButton";
+import { rappelMessage } from "../../whatsapp";
 import { api, errMsg } from "../../api";
 import { useStore } from "../../store";
 import { Confirm, ErrorBox, useToast } from "../../ui";
@@ -73,17 +73,26 @@ export default function Dashboard() {
                 ? "Aucune sauvegarde faite pour l’instant."
                 : `Dernière sauvegarde il y a ${backupDays} jours.`}
             </strong>{" "}
-            Télécharge-la, puis copie-la sur une clé USB ou un disque externe
-            (avec le dossier <code>server/uploads</code> pour les radios).
+            Télécharge les deux fichiers (fiches + radios) et garde-les sur ton
+            ordinateur ou une clé USB.
           </p>
-          <a
-            href="/api/export"
-            download
-            className="btn btn-primary btn-sm"
-            onClick={() => setTimeout(loadBackup, 1500)}
-          >
-            Sauvegarder maintenant
-          </a>
+          <div className="flex gap-2">
+            <a
+              href="/api/export"
+              download
+              className="btn btn-primary btn-sm"
+              onClick={() => setTimeout(loadBackup, 1500)}
+            >
+              1. Fiches
+            </a>
+            <a
+              href="/api/export-images"
+              download
+              className="btn btn-primary btn-sm"
+            >
+              2. Radios
+            </a>
+          </div>
         </div>
       )}
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3">

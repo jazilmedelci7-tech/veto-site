@@ -142,6 +142,39 @@ function SavedCard({
  * Fiche existante : l'image est envoyée tout de suite. Nouvelle fiche : elle est gardée en attente
  * puis envoyée au moment de l'enregistrement de la fiche.
  */
+// Réduit l'image (max 1600 px, JPEG) pour économiser la place dans la base : une radio de 5 Mo passe à ~300 Ko
+async function compress(file: File): Promise<File> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    if (k === 1 && file.size < 400 * 1024) {
+      bmp.close();
+      return file;
+    }
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * k);
+    c.height = Math.round(bmp.height * k);
+    const ctx = c.getContext("2d");
+    if (!ctx) {
+      bmp.close();
+      return file;
+    }
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close();
+    const blob = await new Promise<Blob | null>((ok) =>
+      c.toBlob(ok, "image/jpeg", 0.82),
+    );
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", {
+      type: "image/jpeg",
+    });
+  } catch {
+    return file;
+  }
+}
+
 export function FicheImages({
   ficheId,
   images,
@@ -168,7 +201,11 @@ export function FicheImages({
     e.target.value = "";
     if (!files.length) return;
     setBusy(true);
-    for (const file of files) {
+    for (const original of files) {
+      const file =
+        OK.includes(original.type) && original.size <= MAX
+          ? await compress(original)
+          : original;
       if (!OK.includes(file.type)) {
         toast(`${file.name} : format non pris en charge (JPG, PNG ou WebP).`);
         continue;

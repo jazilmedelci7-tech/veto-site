@@ -67,11 +67,7 @@ const rdvSchema = new Schema(
     nom: { type: String, required: true },
     telephone: { type: String, required: true },
     animal: { type: String, required: true },
-    cabinet: {
-      type: String,
-      enum: ["belcourt", "oued-romane", ""],
-      default: "",
-    },
+    cabinet: { type: String, maxlength: 40, default: "" },
     date: { type: String, default: "" },
     message: { type: String, default: "" },
     statut: {
@@ -93,7 +89,18 @@ const settingSchema = new Schema({
   value: { type: String, required: true },
 });
 
+// Images stockées dans la base (le disque de l'hébergeur gratuit est effacé à chaque redémarrage). _id = nom de fichier.
+const imageDataSchema = new Schema(
+  {
+    _id: { type: String, required: true },
+    mime: { type: String, required: true },
+    data: { type: Buffer, required: true },
+  },
+  { timestamps: true },
+);
+
 export const Fiche = mongoose.model("Fiche", ficheSchema);
+export const ImageData = mongoose.model("ImageData", imageDataSchema);
 export const Rdv = mongoose.model("Rdv", rdvSchema);
 export const Admin = mongoose.model("Admin", adminSchema);
 export const Setting = mongoose.model("Setting", settingSchema);

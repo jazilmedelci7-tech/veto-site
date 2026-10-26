@@ -62,9 +62,8 @@ export const rdvCreateSchema = z.object({
   nom: required("Le nom est obligatoire", 80),
   telephone: required("Numéro de téléphone invalide", 30, 5),
   animal: required("Le nom de l'animal est obligatoire", 80),
-  cabinet: z.enum(["belcourt", "oued-romane"], {
-    message: "Choisis un cabinet",
-  }),
+  // Identifiant du cabinet (défini dans le config.ts du client) : lettres minuscules, chiffres et tirets
+  cabinet: z.string().regex(/^[a-z0-9-]{1,40}$/, "Choisis un cabinet"),
   date: day,
   message: str(1000),
   website: z.string().max(200).optional(), // champ piège anti-robots : doit rester vide
@@ -78,6 +77,31 @@ export const passwordPolicy = z
   .string()
   .min(8, "Le mot de passe doit faire au moins 8 caractères")
   .max(200);
+// Première création du mot de passe par le vétérinaire (code facultatif, voir SETUP_CODE)
+export const setupSchema = z.object({
+  password: passwordPolicy,
+  code: z.string().max(200).optional(),
+});
+// Notifications Telegram configurées depuis le site
+export const telegramTokenSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^\d{5,}:[A-Za-z0-9_-]{20,}$/,
+    "Jeton invalide : il ressemble à 123456789:ABCdef…",
+  );
+export const telegramSchema = z.object({
+  token: telegramTokenSchema,
+  chatId: z
+    .string()
+    .trim()
+    .regex(/^-?\d{3,20}$/, "Identifiant invalide : uniquement des chiffres"),
+});
+export const telegramDetectSchema = z.object({ token: telegramTokenSchema });
+export const changePasswordSchema = z.object({
+  current: z.string().min(1).max(200),
+  password: passwordPolicy,
+});
 
 export const IMAGE_TYPES = [
   "Radiographie",

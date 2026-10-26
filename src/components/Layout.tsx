@@ -10,6 +10,7 @@ import {
 import { api, ApiError } from "../api";
 import { AdminStoreProvider, useStore } from "../store";
 import { cabinets, telHref } from "../cabinets";
+import { site } from "../site";
 import { listRappels } from "../data";
 import { ErrorBox, Reveal } from "../ui";
 
@@ -23,7 +24,7 @@ export function Logo({
   return (
     <img
       src={`/logo-${variant}.png`}
-      alt="Logo Docteur Vétérinaire"
+      alt={`Logo ${site.nom}`}
       className={className}
     />
   );
@@ -34,10 +35,10 @@ export function Brand({ size = "h-12" }: { size?: string }) {
     <Link to="/" className="flex items-center gap-3">
       <Logo className={size} />
       <span className="leading-tight">
-        <strong className="block text-lg md:text-xl">
-          Docteur Vétérinaire
-        </strong>
-        <span className="text-[13px] opacity-85">Belcourt · Oued Romane</span>
+        <strong className="block text-lg md:text-xl">{site.nom}</strong>
+        <span className="text-[13px] opacity-85">
+          {cabinets.map((c) => c.court).join(" · ")}
+        </span>
       </span>
     </Link>
   );
@@ -54,8 +55,6 @@ export function ScrollTop() {
 const links: [string, string][] = [
   ["/", "Accueil"],
   ["/services", "Services"],
-  ["/a-propos", "À propos"],
-  ["/galerie", "Galerie"],
   ["/contact", "Contact"],
 ];
 
@@ -96,6 +95,30 @@ export function Header() {
   );
 }
 
+/** Horaires du pied de page : une seule liste si tous les cabinets ont les mêmes horaires, sinon une par cabinet. */
+function horairesFooter() {
+  const memes = cabinets.every(
+    (c) => JSON.stringify(c.horaires) === JSON.stringify(cabinets[0].horaires),
+  );
+  const liste = (c: (typeof cabinets)[number]) =>
+    c.horaires.map((h) => (
+      <div key={h.jours}>
+        {h.jours} : {h.heures}
+      </div>
+    ));
+  if (memes) return <div>{liste(cabinets[0])}</div>;
+  return (
+    <>
+      {cabinets.map((c) => (
+        <div key={c.id} className="mt-1">
+          <em>{c.court}</em>
+          {liste(c)}
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function Footer() {
   return (
     <footer className="bg-brand text-white">
@@ -103,7 +126,7 @@ export function Footer() {
         <div className="flex items-start gap-4">
           <Logo className="h-20" />
           <div>
-            <strong className="text-lg">Docteur Vétérinaire</strong>
+            <strong className="text-lg">{site.nom}</strong>
             {cabinets.map((c) => (
               <div key={c.id} className="mt-2 leading-6">
                 <strong>{c.court}</strong>
@@ -127,12 +150,7 @@ export function Footer() {
         </div>
         <div>
           <strong>Horaires</strong>
-          <br />
-          Dim – Jeu : 9h – 17h
-          <br />
-          Samedi : 9h – 16h
-          <br />
-          Vendredi : fermé
+          {horairesFooter()}
           <Link to="/admin" className="block opacity-70 hover:opacity-100">
             Espace vétérinaire
           </Link>
@@ -193,8 +211,9 @@ export function Cta() {
               Un rendez-vous pour votre compagnon ?
             </h2>
             <p className="opacity-90">
-              Belcourt : {cabinets[0].telephone} · Oued Romane :{" "}
-              {cabinets[1].telephone}
+              {cabinets.length > 1
+                ? cabinets.map((c) => `${c.court} : ${c.telephone}`).join(" · ")
+                : cabinets[0].telephone}
             </p>
           </div>
           <Link to="/contact" className="btn btn-white relative">
@@ -269,12 +288,25 @@ function AdminShell() {
               </span>
             )}
           </NavLink>
+          <NavLink to="/admin/notifications" className={item}>
+            Notifications
+          </NavLink>
+          <NavLink to="/admin/mot-de-passe" className={item}>
+            Mot de passe
+          </NavLink>
           <a
             href="/api/export"
             download
             className="whitespace-nowrap px-3.5 py-2.5 hover:underline md:py-3"
           >
-            Télécharger une sauvegarde
+            Sauvegarde fiches
+          </a>
+          <a
+            href="/api/export-images"
+            download
+            className="whitespace-nowrap px-3.5 py-2.5 hover:underline md:py-3"
+          >
+            Sauvegarde radios
           </a>
           <Link
             to="/"

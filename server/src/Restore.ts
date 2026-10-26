@@ -1,9 +1,10 @@
-// Restaure une sauvegarde téléchargée depuis l'espace vétérinaire :  npm run restore -- chemin/vers/sauvegarde.json
+// Restaure une sauvegarde téléchargée depuis l'espace vétérinaire :  npm run restore -- sauvegarde.json [sauvegarde-images.ndjson]
 import fs from "node:fs";
 import mongoose from "mongoose";
-import { config } from "./Config.js";
-import { Fiche, Rdv } from "./Models.js";
-import { ficheSchema } from "./Validation.js";
+import { config } from "./config.js";
+import readline from "node:readline";
+import { Fiche, ImageData, Rdv } from "./models.js";
+import { ficheSchema } from "./validation.js";
 
 type Doc = Record<string, unknown> & { id?: string };
 
@@ -55,7 +56,7 @@ async function main() {
         telephone: r.telephone,
         animal: r.animal,
         cabinet:
-          r.cabinet === "belcourt" || r.cabinet === "oued-romane"
+          typeof r.cabinet === "string" && /^[a-z0-9-]{1,40}$/.test(r.cabinet)
             ? r.cabinet
             : "",
         date: r.date ?? "",
@@ -66,7 +67,42 @@ async function main() {
     );
     nr++;
   }
-  console.log(`Restauré : ${nf} fiche(s), ${nr} demande(s) de rendez-vous.`);
+  let ni = 0;
+  const imgFile = process.argv[3];
+  if (imgFile) {
+    const rl = readline.createInterface({
+      input: fs.createReadStream(imgFile),
+      crlfDelay: Infinity,
+    });
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+      try {
+        const { file, data } = JSON.parse(line) as {
+          file: string;
+          data: string;
+        };
+        if (!/^[a-f0-9-]{36}\.(jpg|png|webp)$/.test(file)) continue;
+        const ext = file.split(".")[1] as "jpg" | "png" | "webp";
+        await ImageData.replaceOne(
+          { _id: file },
+          {
+            _id: file,
+            mime: { jpg: "image/jpeg", png: "image/png", webp: "image/webp" }[
+              ext
+            ],
+            data: Buffer.from(data, "base64"),
+          },
+          { upsert: true },
+        );
+        ni++;
+      } catch {
+        console.warn("Ligne image ignorée");
+      }
+    }
+  }
+  console.log(
+    `Restauré : ${nf} fiche(s), ${nr} demande(s) de rendez-vous, ${ni} image(s).`,
+  );
   await mongoose.disconnect();
 }
 main().catch((e) => {

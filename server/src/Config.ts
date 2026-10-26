@@ -18,10 +18,12 @@ export const config = {
   jwtSecretEnv: process.env.JWT_SECRET || undefined,
   cookieSecure: process.env.COOKIE_SECURE === "true",
   isProd: process.env.NODE_ENV === "production",
+  // Derrière un hébergeur (Render, Railway, Azure…) : TRUST_PROXY=1 pour lire la vraie adresse des visiteurs
+  trustProxy: num(process.env.TRUST_PROXY, 0, 0, 5),
   // Le site construit (npm run build à la racine) se trouve dans ../dist par rapport au dossier server
   // Même chemin en développement (server/src) et une fois compilé (server/dist) : ../../dist = vet-site/dist
   distDir: path.resolve(here, "../../dist"),
-  // Radios et photos : enregistrées comme fichiers sur le PC (dossier server/uploads par défaut)
+  // Anciennes radios (avant le passage à la base) : lues dans ce dossier si présentes. Les nouvelles sont dans MongoDB.
   uploadsDir: process.env.UPLOADS_DIR
     ? path.resolve(process.env.UPLOADS_DIR)
     : path.resolve(here, "../uploads"),
@@ -31,5 +33,8 @@ export const config = {
   telegramChatId: process.env.TELEGRAM_CHAT_ID || undefined,
   notifyHour: num(process.env.NOTIFY_HOUR, 8, 0, 23),
   notifyDaysBefore: num(process.env.NOTIFY_DAYS_BEFORE, 3, 0, 30),
+  // Code à fournir pour créer le tout premier mot de passe depuis le site (empêche un inconnu de le créer à ta place).
+  // À définir sur l'hébergeur ; laisse vide en local.
+  setupCode: process.env.SETUP_CODE?.trim() || undefined,
   sessionHours: 12,
 };

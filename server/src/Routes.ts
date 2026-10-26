@@ -1,26 +1,37 @@
 import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import express, { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import type { z } from "zod";
-import { config } from "./Config.js";
+import { config } from "./config.js";
 import {
   endSession,
   isAuthenticated,
   requireAuth,
   startSession,
-} from "./Auth.js";
-import { Admin, Fiche, Rdv, Setting } from "./Models.js";
+} from "./auth.js";
+import { Admin, Fiche, ImageData, Rdv, Setting } from "./models.js";
 import {
+  clearTelegram,
+  detectChatId,
+  saveTelegram,
+  sendTelegram,
+  telegramConf,
+} from "./notify.js";
+import {
+  changePasswordSchema,
   ficheSchema,
   imageMetaSchema,
   imagePatchSchema,
   loginSchema,
   rdvCreateSchema,
   rdvStatutSchema,
-} from "./Validation.js";
+  setupSchema,
+  telegramDetectSchema,
+  telegramSchema,
+} from "./validation.js";
 
 export const router = Router();
 
@@ -69,10 +80,12 @@ router.post(
     if (!data) return;
     const admin = await Admin.findOne();
     if (!admin) {
-      res.status(503).json({
-        error:
-          "Aucun mot de passe n'est défini. Lance « npm run set-password » dans le dossier server.",
-      });
+      res
+        .status(503)
+        .json({
+          error:
+            "Aucun mot de passe n'est défini. Ouvre la page de connexion pour le créer.",
+        });
       return;
     }
     const ok = await bcrypt.compare(data.password, admin.passwordHash);
@@ -82,6 +95,39 @@ router.post(
     }
     startSession(res);
     res.json({ ok: true });
+  },
+);
+// Le site demande s'il faut afficher « Créer mon mot de passe » (premier accès) ou « Se connecter »
+router.get("/auth/status", async (_req, res) => {
+  res.json({
+    configured: !!(await Admin.exists({})),
+    needsCode: !!config.setupCode,
+  });
+});
+// Création du premier mot de passe, par le vétérinaire lui-même. Impossible dès qu'un mot de passe existe.
+router.post(
+  "/auth/setup",
+  loginLimiter,
+  async (req: Request, res: Response) => {
+    const data = parse(setupSchema, req.body, res);
+    if (!data) return;
+    if (await Admin.exists({})) {
+      res
+        .status(409)
+        .json({ error: "Un mot de passe est déjà défini. Connecte-toi." });
+      return;
+    }
+    if (config.setupCode) {
+      const a = Buffer.from(data.code ?? ""),
+        b = Buffer.from(config.setupCode);
+      if (a.length !== b.length || !timingSafeEqual(a, b)) {
+        res.status(403).json({ error: "Code d'activation incorrect." });
+        return;
+      }
+    }
+    await Admin.create({ passwordHash: await bcrypt.hash(data.password, 12) });
+    startSession(res);
+    res.status(201).json({ ok: true });
   },
 );
 router.post("/auth/logout", (_req, res) => {
@@ -111,6 +157,24 @@ router.post("/rdv", rdvLimiter, async (req, res) => {
 
 /* ---------- Tout le reste : réservé au vétérinaire ---------- */
 router.use(requireAuth);
+
+// Changer son mot de passe (il faut connaître l'ancien)
+router.post(
+  "/auth/change-password",
+  loginLimiter,
+  async (req: Request, res: Response) => {
+    const data = parse(changePasswordSchema, req.body, res);
+    if (!data) return;
+    const admin = await Admin.findOne();
+    if (!admin || !(await bcrypt.compare(data.current, admin.passwordHash))) {
+      res.status(401).json({ error: "Mot de passe actuel incorrect." });
+      return;
+    }
+    admin.passwordHash = await bcrypt.hash(data.password, 12);
+    await admin.save();
+    res.json({ ok: true });
+  },
+);
 
 router.get("/fiches", async (req, res) => {
   const q = one(req.query.q).trim().slice(0, 80);
@@ -201,33 +265,45 @@ function detectImage(b: Buffer): "jpg" | "png" | "webp" | null {
     return "webp";
   return null;
 }
+const MIME = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+} as const;
 const removeImageFile = async (file: string) => {
   if (!FILE_RX.test(file)) return;
+  await ImageData.deleteOne({ _id: file });
   try {
     await fs.promises.unlink(path.join(config.uploadsDir, file));
   } catch {
-    /* déjà absent */
+    /* déjà absent ou stocké en base */
   }
 };
+// Lit une image : d'abord dans la base, sinon dans l'ancien dossier (anciennes radios)
+async function readImage(file: string): Promise<Buffer | null> {
+  const d = await ImageData.findById(file);
+  if (d) return Buffer.from(d.data);
+  try {
+    return await fs.promises.readFile(path.join(config.uploadsDir, file));
+  } catch {
+    return null;
+  }
+}
 
-router.get("/images/:file", (req, res) => {
+router.get("/images/:file", async (req, res) => {
   const file = String(req.params.file);
   if (!FILE_RX.test(file)) {
     res.status(404).json({ error: "Image introuvable" });
     return;
   }
-  res.sendFile(
-    file,
-    {
-      root: config.uploadsDir,
-      dotfiles: "deny",
-      headers: { "Cache-Control": "private, max-age=3600" },
-    },
-    (err) => {
-      if (err && !res.headersSent)
-        res.status(404).json({ error: "Image introuvable" });
-    },
-  );
+  const buf = await readImage(file);
+  if (!buf) {
+    res.status(404).json({ error: "Image introuvable" });
+    return;
+  }
+  res.setHeader("Content-Type", MIME[file.split(".")[1] as keyof typeof MIME]);
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.send(buf);
 });
 
 router.post(
@@ -243,16 +319,20 @@ router.post(
     }
     const body = req.body as unknown;
     if (!Buffer.isBuffer(body) || body.length === 0) {
-      res.status(415).json({
-        error: "Format d'image non pris en charge (JPG, PNG ou WebP).",
-      });
+      res
+        .status(415)
+        .json({
+          error: "Format d'image non pris en charge (JPG, PNG ou WebP).",
+        });
       return;
     }
     const ext = detectImage(body);
     if (!ext) {
-      res.status(415).json({
-        error: "Ce fichier n'est pas une image JPG, PNG ou WebP valide.",
-      });
+      res
+        .status(415)
+        .json({
+          error: "Ce fichier n'est pas une image JPG, PNG ou WebP valide.",
+        });
       return;
     }
     const meta = parse(
@@ -277,10 +357,7 @@ router.post(
       return;
     }
     const file = `${randomUUID()}.${ext}`;
-    await fs.promises.mkdir(config.uploadsDir, { recursive: true });
-    await fs.promises.writeFile(path.join(config.uploadsDir, file), body, {
-      flag: "wx",
-    });
+    await ImageData.create({ _id: file, mime: MIME[ext], data: body });
     const f = await Fiche.findByIdAndUpdate(
       req.params.id,
       { $push: { images: { id: randomUUID(), file, ...meta } } },
@@ -381,6 +458,70 @@ router.delete("/rdvs/:id", async (req, res) => {
   res.status(204).end();
 });
 
+/* ---------- Notifications Telegram (réglées par le vétérinaire) ---------- */
+const notifLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: limitMsg("Trop d'essais. Réessaie dans quelques minutes."),
+});
+router.get("/notifications", async (_req, res) => {
+  const c = await telegramConf();
+  res.json({
+    configured: !!c,
+    source: c?.source ?? null,
+    hour: config.notifyHour,
+    daysBefore: config.notifyDaysBefore,
+  }); // le jeton n'est jamais renvoyé
+});
+router.post("/notifications/detect", notifLimiter, async (req, res) => {
+  const data = parse(telegramDetectSchema, req.body, res);
+  if (!data) return;
+  try {
+    res.json(await detectChatId(data.token));
+  } catch (e) {
+    res
+      .status(400)
+      .json({ error: e instanceof Error ? e.message : "Erreur Telegram" });
+  }
+});
+router.put("/notifications", notifLimiter, async (req, res) => {
+  const data = parse(telegramSchema, req.body, res);
+  if (!data) return;
+  try {
+    await sendTelegram(
+      "Les notifications du cabinet sont activées. Tu recevras ici les rappels de vaccin à envoyer.",
+      data,
+    );
+  } catch (e) {
+    res
+      .status(400)
+      .json({
+        error: e instanceof Error ? e.message : "Telegram a refusé le message",
+      });
+    return;
+  }
+  await saveTelegram(data); // enregistré seulement si le message de test est bien arrivé
+  res.json({ ok: true });
+});
+router.post("/notifications/test", notifLimiter, async (_req, res) => {
+  try {
+    await sendTelegram("Test : les notifications du cabinet fonctionnent.");
+    res.json({ ok: true });
+  } catch (e) {
+    res
+      .status(400)
+      .json({
+        error: e instanceof Error ? e.message : "Telegram a refusé le message",
+      });
+  }
+});
+router.delete("/notifications", async (_req, res) => {
+  await clearTelegram();
+  res.json({ ok: true });
+});
+
 /* ---------- Sauvegarde ---------- */
 router.get("/export", async (_req, res) => {
   const [fiches, rdvs] = await Promise.all([
@@ -398,6 +539,26 @@ router.get("/export", async (_req, res) => {
     { upsert: true },
   );
   res.json({ exportedAt: now, fiches, rdvs });
+});
+
+// Sauvegarde des images : un fichier texte, une image par ligne (lu en continu pour ne pas saturer la mémoire)
+router.get("/export-images", async (_req, res) => {
+  const fiches = await Fiche.find().select("images");
+  const files = fiches.flatMap((f) => f.images.map((i) => i.file));
+  res.setHeader("Content-Type", "application/x-ndjson");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="sauvegarde-images-${new Date().toISOString().slice(0, 10)}.ndjson"`,
+  );
+  for (const file of files) {
+    const buf = await readImage(file);
+    if (!buf) continue;
+    if (
+      !res.write(JSON.stringify({ file, data: buf.toString("base64") }) + "\n")
+    )
+      await new Promise((ok) => res.once("drain", ok));
+  }
+  res.end();
 });
 
 router.get("/backup-status", async (_req, res) => {

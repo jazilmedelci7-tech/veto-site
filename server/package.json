@@ -11,7 +11,8 @@
     "set-password": "tsx src/setPassword.ts",
     "seed": "tsx src/seed.ts",
     "restore": "tsx src/restore.ts",
-    "notify-test": "tsx src/notifyTest.ts"
+    "notify-test": "tsx src/notifyTest.ts",
+    "notify-now": "tsx src/notifyNow.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
