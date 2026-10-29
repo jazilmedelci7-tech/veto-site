@@ -154,6 +154,35 @@ router.post("/rdv", rdvLimiter, async (req, res) => {
   const { website: _ignored, ...rdv } = data;
   await Rdv.create(rdv);
   res.status(201).json({ ok: true });
+  // Prévient le vétérinaire sur Telegram (sans bloquer ni faire échouer la demande du client)
+  void (async () => {
+    try {
+      if (!(await telegramConf())) return;
+      const jour = rdv.date
+        ? rdv.date.split("-").reverse().join("/")
+        : "non précisée";
+      const lignes = [
+        `Nouvelle demande de rendez-vous`,
+        ``,
+        `Client : ${rdv.nom}`,
+        `Téléphone : ${rdv.telephone}`,
+        `Animal : ${rdv.animal}`,
+        `Date souhaitée : ${jour}`,
+      ];
+      if (rdv.cabinet) lignes.push(`Cabinet : ${rdv.cabinet}`);
+      if (rdv.message) lignes.push(`Message : ${rdv.message}`);
+      lignes.push(
+        ``,
+        `Ouvre « Rendez-vous » dans ton espace pour la confirmer.`,
+      );
+      await sendTelegram(lignes.join("\n").slice(0, 4000));
+    } catch (e) {
+      console.error(
+        "Notification de rendez-vous impossible :",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  })();
 });
 
 /* ---------- Tout le reste : réservé au vétérinaire ---------- */
