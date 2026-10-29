@@ -25,6 +25,7 @@ export interface Fiche {
   id: string;
   nom: string;
   prenom: string;
+  age: string;
   telephone: string;
   adresse: string;
   animal: string;
