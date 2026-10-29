@@ -56,6 +56,12 @@ export default function Notifications() {
       await api.notifTest();
       toast("Message de test envoyé");
     });
+  const backup = () =>
+    run("backup", async () => {
+      await api.notifBackup();
+      toast("Sauvegarde envoyée : regarde ton Telegram");
+      load();
+    });
   const off = () =>
     run("off", async () => {
       await api.notifOff();
@@ -84,6 +90,15 @@ export default function Notifications() {
               ? "Réglées par votre hébergeur."
               : "Message chaque jour tant que le site est en ligne."}
           </p>
+          <p className="mb-4 rounded-lg bg-brand-light p-3 text-sm">
+            <b>Sauvegarde automatique :</b> chaque dimanche, le site envoie un
+            fichier de sauvegarde de vos fiches dans ce Telegram. Gardez-le (ne
+            le partagez pas).{" "}
+            {st.lastTelegramBackup
+              ? `Dernier envoi : ${new Date(st.lastTelegramBackup).toLocaleDateString("fr-FR")}.`
+              : "Aucun envoi pour l’instant."}{" "}
+            Les radios se sauvegardent à part avec « Sauvegarde radios ».
+          </p>
           <div className="flex flex-wrap gap-3">
             <button
               className="btn btn-primary btn-sm disabled:opacity-60"
@@ -91,6 +106,15 @@ export default function Notifications() {
               onClick={test}
             >
               {busy === "test" ? "Envoi…" : "Envoyer un message de test"}
+            </button>
+            <button
+              className="btn btn-ghost btn-sm disabled:opacity-60"
+              disabled={!!busy}
+              onClick={backup}
+            >
+              {busy === "backup"
+                ? "Envoi…"
+                : "Envoyer une sauvegarde maintenant"}
             </button>
             {st.source === "site" && (
               <button

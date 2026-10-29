@@ -20,7 +20,7 @@ export default function Home() {
           <div>
             <p className="mb-3 animate-fade-up text-sm font-bold opacity-85">{cabinets.map((c) => c.court).join(' · ')} · {site.ville}</p>
             <h1 className="animate-fade-up text-4xl font-extrabold leading-[1.08] [animation-delay:100ms] md:text-6xl">{site.accroche}</h1>
-            <p className="mb-8 mt-5 max-w-md animate-fade-up text-lg leading-relaxed opacity-90 [animation-delay:200ms]">Consultations, vaccins, chirurgie et suivi médical. Chaque animal a un dossier complet pour un suivi sur la durée.</p>
+            <p className="mb-8 mt-5 max-w-md animate-fade-up text-lg leading-relaxed opacity-90 [animation-delay:200ms]">Consultations, vaccinations, iamgerie, chirurgie et suivi médical. Chaque animal a un dossier complet pour un suivi sur la durée.</p>
             <div className="flex animate-fade-up flex-wrap gap-3 [animation-delay:300ms]"><Link to="/contact" className="btn btn-white">Prendre rendez-vous</Link><Link to="/services" className="btn btn-outline">Nos services</Link></div>
           </div>
           <div className="flex h-64 animate-fade-in items-center justify-center rounded-3xl bg-white/10 [animation-delay:300ms] md:h-[400px]"><Logo className="h-52 animate-float md:h-80" /></div>

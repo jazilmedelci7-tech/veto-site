@@ -16,6 +16,7 @@ import { Admin, Fiche, ImageData, Rdv, Setting } from "./models.js";
 import {
   clearTelegram,
   detectChatId,
+  envoyerSauvegarde,
   saveTelegram,
   sendTelegram,
   telegramConf,
@@ -468,11 +469,13 @@ const notifLimiter = rateLimit({
 });
 router.get("/notifications", async (_req, res) => {
   const c = await telegramConf();
+  const last = (await Setting.findOne({ key: "backupTgLast" }))?.value ?? null;
   res.json({
     configured: !!c,
     source: c?.source ?? null,
     hour: config.notifyHour,
     daysBefore: config.notifyDaysBefore,
+    lastTelegramBackup: last,
   }); // le jeton n'est jamais renvoyé
 });
 router.post("/notifications/detect", notifLimiter, async (req, res) => {
@@ -514,6 +517,18 @@ router.post("/notifications/test", notifLimiter, async (_req, res) => {
       .status(400)
       .json({
         error: e instanceof Error ? e.message : "Telegram a refusé le message",
+      });
+  }
+});
+router.post("/notifications/backup", notifLimiter, async (_req, res) => {
+  try {
+    await envoyerSauvegarde();
+    res.json({ ok: true });
+  } catch (e) {
+    res
+      .status(400)
+      .json({
+        error: e instanceof Error ? e.message : "Telegram a refusé le fichier",
       });
   }
 });

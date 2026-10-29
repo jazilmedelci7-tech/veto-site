@@ -1,5 +1,5 @@
 import { config } from "./config.js";
-import { Fiche, Setting } from "./models.js";
+import { Fiche, Rdv, Setting } from "./models.js";
 
 const two = (n: number) => String(n).padStart(2, "0");
 const localDay = (d = new Date()) =>
@@ -95,6 +95,65 @@ export async function sendTelegram(text: string, conf?: TelegramConf) {
   }
 }
 
+/** Envoie un fichier dans la conversation Telegram (limite de Telegram : 50 Mo). */
+export async function sendTelegramFile(
+  filename: string,
+  content: Buffer,
+  caption: string,
+  conf?: TelegramConf,
+) {
+  const c = conf ?? (await telegramConf());
+  if (!c)
+    throw new Error("Les notifications Telegram ne sont pas configurées.");
+  const form = new FormData();
+  form.append("chat_id", c.chatId);
+  form.append("caption", caption);
+  form.append(
+    "document",
+    new Blob([new Uint8Array(content)], { type: "application/json" }),
+    filename,
+  );
+  const res = await fetch(`${config.telegramApi}/bot${c.token}/sendDocument`, {
+    method: "POST",
+    body: form,
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      detail =
+        ((await res.json()) as { description?: string }).description ?? "";
+    } catch {
+      /* pas de JSON */
+    }
+    throw new Error(
+      `Telegram a refusé le fichier (${res.status}) ${detail}`.trim(),
+    );
+  }
+}
+
+/** Envoie la sauvegarde des fiches et rendez-vous (sans les radios) dans Telegram. */
+export async function envoyerSauvegarde(): Promise<void> {
+  const [fiches, rdvs] = await Promise.all([
+    Fiche.find().sort({ createdAt: 1 }),
+    Rdv.find().sort({ createdAt: 1 }),
+  ]);
+  const now = new Date().toISOString();
+  const buf = Buffer.from(JSON.stringify({ exportedAt: now, fiches, rdvs }));
+  if (buf.length > 45 * 1024 * 1024) {
+    await sendTelegram(
+      "Sauvegarde automatique impossible : le fichier est trop gros pour Telegram. Télécharge-la à la main (boutons « Sauvegarde » du site).",
+    );
+    return;
+  }
+  await sendTelegramFile(
+    `sauvegarde-veto-${now.slice(0, 10)}.json`,
+    buf,
+    `Sauvegarde automatique du ${fr(now.slice(0, 10))} : ${fiches.length} fiche(s). Garde ce fichier (ne le partage pas : il contient les données des clients). Les radios se sauvegardent à part, avec le bouton « Sauvegarde radios » du site.`,
+  );
+  await setSetting("backupTgLast", now);
+}
+
 async function getSetting(key: string) {
   return (await Setting.findOne({ key }))?.value;
 }
@@ -177,6 +236,19 @@ export function startNotifier() {
     try {
       if (!(await notificationsEnabled())) return; // pas (encore) configuré : on réessaie à la prochaine minute
       const day = localDay(now);
+      // Sauvegarde automatique : une fois par semaine (le dimanche), envoyée dans Telegram
+      if (now.getDay() === 0 && (await getSetting("backupTgDay")) !== day) {
+        try {
+          await envoyerSauvegarde();
+          await setSetting("backupTgDay", day);
+          console.log("Sauvegarde hebdomadaire envoyée sur Telegram.");
+        } catch (e) {
+          console.error(
+            "Sauvegarde Telegram impossible :",
+            e instanceof Error ? e.message : e,
+          );
+        }
+      }
       if ((await getSetting("notifyLastDay")) === day) return;
       const n = await envoyerRappels();
       await setSetting("notifyLastDay", day);

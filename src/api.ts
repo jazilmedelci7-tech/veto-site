@@ -110,6 +110,7 @@ export const api = {
       source: "site" | "env" | null;
       hour: number;
       daysBefore: number;
+      lastTelegramBackup: string | null;
     }>("GET", "/notifications"),
   notifDetect: (token: string) =>
     request<{ chatId: string; nom: string }>("POST", "/notifications/detect", {
@@ -118,6 +119,7 @@ export const api = {
   notifSave: (token: string, chatId: string) =>
     request<{ ok: true }>("PUT", "/notifications", { token, chatId }),
   notifTest: () => request<{ ok: true }>("POST", "/notifications/test"),
+  notifBackup: () => request<{ ok: true }>("POST", "/notifications/backup"),
   notifOff: () => request<{ ok: true }>("DELETE", "/notifications"),
   backupStatus: () => request<{ last: string | null }>("GET", "/backup-status"),
   createRdv: (r: RdvInput) => request<{ ok: true }>("POST", "/rdv", r),
