@@ -14,7 +14,7 @@ export function Horaires({ c }: { c: Cabinet }) {
 export function CabinetCard({ c, delay = 0 }: { c: Cabinet; delay?: number }) {
   return (
     <Reveal delay={delay} className="h-full">
-      <div className="card h-full transition duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-brand/10">
+      <div className="h-full border-l-4 border-brand bg-white p-5 shadow-sm md:p-6">
         <h3 className="mb-3 text-xl font-extrabold text-brand">{c.nom}</h3>
         <p className="mb-1 text-brand-muted">{c.adresse}</p>
         <p className="mb-4"><a className="font-bold text-brand hover:underline" href={telHref(c.telephone)}>{c.telephone}</a></p>
@@ -27,10 +27,9 @@ export function CabinetCard({ c, delay = 0 }: { c: Cabinet; delay?: number }) {
 export function CabinetMap({ c }: { c: Cabinet }) {
   return (
     <div>
-      <h3 className="mb-3 font-bold">{c.nom}</h3>
       <iframe
         title={`Carte – ${c.nom}`}
-        className="h-64 w-full rounded-2xl border-0 md:h-72"
+        className="h-64 w-full rounded-lg border-0 md:h-72"
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
         src={`https://www.google.com/maps?q=${encodeURIComponent(c.carte)}&output=embed`}

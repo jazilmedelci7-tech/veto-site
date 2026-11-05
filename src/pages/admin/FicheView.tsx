@@ -2,7 +2,7 @@ import { ReactNode, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { errMsg } from '../../api'
 import { ImageViewer, imgUrl } from '../../components/FicheImages'
-import { Fiche, fmt, nextRappel, rappelState } from '../../data'
+import { ageAnimalLabel, Fiche, fmt, nextRappel, rappelState } from '../../data'
 import { WhatsAppButton } from '../../components/WhatsAppButton'
 import { useStore } from '../../store'
 import { rappelMessage } from '../../whatsapp'
@@ -74,7 +74,7 @@ export default function FicheView() {
         <Table title="Client" rows={[['Nom', `${f.nom} ${f.prenom}`.trim()], ['Âge', f.age ? `${f.age} ans` : ''], ['Téléphone', f.telephone], ['Adresse', f.adresse]]} />
         <Table title="Animal" rows={[
           ['Nom', f.animal], ['Espèce', espece], ['Race', f.race], ['Robe', f.robe], ['Sexe', f.sexe],
-          ['Stérilisé(e)', f.sterilise], ['Âge', f.ageAnimal], ['Poids', f.poids ? `${f.poids} kg` : ''],
+          ['Stérilisé(e)', f.sterilise], ['Âge', f.naissance ? `${ageAnimalLabel(f)} (né(e) le ${fmt(f.naissance)})` : ageAnimalLabel(f)], ['Poids', f.poids ? `${f.poids} kg` : ''],
           ['N° de puce', f.puce], ['N° de tatouage', f.tatouage], ['Prochain rappel', rappel ? <RappelBadge date={rappel} /> : ''],
         ]} />
       </div>

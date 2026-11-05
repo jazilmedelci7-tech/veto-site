@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { antecedentsMore, antecedentsOptions, especes, getEspece, medicamentsMore, medicamentsOptions, motifs, motifsMore, motifsRappel, motifsVaccin } from '../../animals'
 import { errMsg } from '../../api'
 import { FicheImages, Pending } from '../../components/FicheImages'
-import { addToDate, Fiche, fmt, newId, todayLocal, Visite } from '../../data'
+import { addToDate, ageFrom, Fiche, fmt, newId, todayLocal, Visite } from '../../data'
 import { useStore } from '../../store'
 import { Chips, Confirm, ErrorBox, MultiChips, TagPicker, useToast } from '../../ui'
 
@@ -11,7 +11,7 @@ const today = todayLocal
 const blankVisite = (): Visite => ({ id: newId(), date: today(), motifs: [], vaccins: [], medicaments: [], rappel: '', note: '' })
 const blank = (): Fiche => ({
   id: '', nom: '', prenom: '', age: '', telephone: '', adresse: '', animal: '', espece: '', precision: '', race: '',
-  sexe: '', sterilise: '', ageAnimal: '', poids: '', robe: '', puce: '', tatouage: '',
+  sexe: '', sterilise: '', ageAnimal: '', naissance: '', poids: '', robe: '', puce: '', tatouage: '',
   antecedents: [], antecedentsNote: '', images: [], visites: [blankVisite()],
 })
 /** Fiches enregistrées avant l'ajout de certains champs : on complète avec des valeurs vides. */
@@ -62,7 +62,7 @@ function FicheForm({ isNew, initial, initialEdit, initialCreated }: { isNew: boo
   const [newIds, setNewIds] = useState<string[]>(initialCreated)
 
   const esp = getEspece(f.espece)
-  const set = (k: 'nom' | 'prenom' | 'age' | 'telephone' | 'adresse' | 'animal' | 'precision' | 'race' | 'sexe' | 'sterilise' | 'ageAnimal' | 'poids' | 'robe' | 'puce' | 'tatouage' | 'antecedentsNote') => (v: string) => setF({ ...f, [k]: v })
+  const set = (k: 'nom' | 'prenom' | 'age' | 'telephone' | 'adresse' | 'animal' | 'precision' | 'race' | 'sexe' | 'sterilise' | 'ageAnimal' | 'naissance' | 'poids' | 'robe' | 'puce' | 'tatouage' | 'antecedentsNote') => (v: string) => setF({ ...f, [k]: v })
   const setEspece = (nom: string) => {
     const e = getEspece(nom)
     if (nom !== f.espece) setAutreRobe(false)
@@ -129,7 +129,13 @@ function FicheForm({ isNew, initial, initialEdit, initialCreated }: { isNew: boo
           )}
           <div><p className="label">Sexe</p><Chips label="Sexe" options={['Mâle', 'Femelle']} value={f.sexe} onChange={set('sexe')} /></div>
           <div><p className="label">Stérilisé(e)</p><Chips label="Stérilisé" options={['Oui', 'Non']} value={f.sterilise} onChange={set('sterilise')} /></div>
-          <Field id="aga" label="Âge (ex : 3 ans, 8 mois)" value={f.ageAnimal} onChange={set('ageAnimal')} />
+          <div>
+            <label className="label" htmlFor="naissance">Date de naissance</label>
+            <input id="naissance" type="date" className="input" max={todayLocal()} value={f.naissance} onChange={(e) => set('naissance')(e.target.value)} />
+            <p className="mt-1 text-sm text-brand-muted">
+              {f.naissance ? <>Âge : <strong>{ageFrom(f.naissance) || '—'}</strong> (mis à jour chaque jour)</> : f.ageAnimal ? <>Ancien âge saisi : « {f.ageAnimal} ». Choisis la date de naissance pour qu'il se mette à jour tout seul.</> : 'L\'âge se calcule tout seul à partir de cette date.'}
+            </p>
+          </div>
           <Field id="poids" label="Poids (kg)" inputMode="decimal" value={f.poids} onChange={set('poids')} />
           <Field id="puce" label="N° de puce électronique" inputMode="numeric" maxLength={25} placeholder="15 chiffres" value={f.puce} onChange={set('puce')} />
           <Field id="tatouage" label="N° de tatouage" maxLength={25} value={f.tatouage} onChange={set('tatouage')} />
