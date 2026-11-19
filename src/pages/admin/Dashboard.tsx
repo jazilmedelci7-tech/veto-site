@@ -175,14 +175,18 @@ export default function Dashboard() {
               <span>
                 <span className="text-brand-muted md:hidden">Animal : </span>
                 {f.animal}
-                {f.agressif && (
-                  <span className="ml-2 rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-                    AGRESSIF
-                  </span>
-                )}
-                {montantDu(f) > 0 && (
-                  <span className="ml-2 rounded bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
-                    DOIT {fmtDA(montantDu(f))}
+                {(f.agressif || montantDu(f) > 0) && (
+                  <span className="mt-1 flex flex-wrap gap-1.5">
+                    {f.agressif && (
+                      <span className="whitespace-nowrap rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                        AGRESSIF
+                      </span>
+                    )}
+                    {montantDu(f) > 0 && (
+                      <span className="whitespace-nowrap rounded bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
+                        DOIT {fmtDA(montantDu(f))}
+                      </span>
+                    )}
                   </span>
                 )}
                 {f.race && (
