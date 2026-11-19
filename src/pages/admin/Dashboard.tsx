@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fmt, nextRappel, rappelState } from "../../data";
+import { fmt, fmtDA, montantDu, nextRappel, rappelState } from "../../data";
 import { RappelBadge } from "./FicheView";
 import { WhatsAppButton } from "../../components/WhatsAppButton";
 import { rappelMessage } from "../../whatsapp";
@@ -178,6 +178,11 @@ export default function Dashboard() {
                 {f.agressif && (
                   <span className="ml-2 rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
                     AGRESSIF
+                  </span>
+                )}
+                {montantDu(f) > 0 && (
+                  <span className="ml-2 rounded bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
+                    DOIT {fmtDA(montantDu(f))}
                   </span>
                 )}
                 {f.race && (

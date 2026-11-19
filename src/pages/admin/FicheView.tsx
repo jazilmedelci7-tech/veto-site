@@ -2,7 +2,7 @@ import { ReactNode, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { errMsg } from '../../api'
 import { ImageViewer, imgUrl } from '../../components/FicheImages'
-import { ageAnimalLabel, Fiche, fmt, fmtDA, memeClient, montantDu, nextRappel, rappelState } from '../../data'
+import { ageAnimalLabel, Fiche, fmt, fmtDA, memeClient, montantDu, nextRappel, rappelState, todayLocal } from '../../data'
 import { WhatsAppButton } from '../../components/WhatsAppButton'
 import { useStore } from '../../store'
 import { rappelMessage } from '../../whatsapp'
@@ -32,7 +32,7 @@ export default function FicheView() {
   const { id } = useParams()
   const nav = useNavigate()
   const toast = useToast()
-  const { fiches, loading, error, reload, deleteFiche } = useStore()
+  const { fiches, loading, error, reload, deleteFiche, saveFiche } = useStore()
   const [all, setAll] = useState(false)
   const [ask, setAsk] = useState(false)
   const [view, setView] = useState<{ src: string; title: string } | null>(null)
@@ -48,6 +48,9 @@ export default function FicheView() {
   const remove = async () => { setAsk(false); try { await deleteFiche(f.id); toast('Fiche supprimée'); nav('/admin') } catch (e) { toast(errMsg(e)) } }
   const autres = fiches.filter((x) => x.id !== f.id && memeClient(f, x))
   const du = montantDu(f)
+  const regler = async () => {
+    try { await saveFiche({ ...f, dus: '', dusNote: `Réglé le ${fmt(todayLocal())} (${fmtDA(du)})${f.dusNote ? ` · ${f.dusNote}` : ''}`.slice(0, 500) }, false); toast('Marqué comme réglé') } catch (e) { toast(errMsg(e)) }
+  }
   const espece = f.espece === 'Autre' && f.precision ? f.precision : f.espece
 
   return (
@@ -159,9 +162,12 @@ export default function FicheView() {
 
       <section className={`card mt-6 ${du ? 'border-amber-400 bg-amber-50' : ''}`}>
         <h2 className="mb-1 text-base font-bold">Dus</h2>
-        {du ? <p className="text-lg font-extrabold text-amber-900">Reste à payer : {fmtDA(du)}</p> : <p className="text-sm text-brand-muted">Le client ne doit rien.</p>}
+        {du ? <p className="text-lg font-extrabold text-amber-900">Reste à payer : {fmtDA(du)}</p> : <p className="text-sm font-bold text-green-700">{f.dusNote?.startsWith('Réglé') ? '✓ Réglé' : 'Le client ne doit rien.'}</p>}
         {f.dusNote && <p className="mt-1 whitespace-pre-line text-sm text-brand-muted">{f.dusNote}</p>}
-        <Link to={`/admin/fiches/${f.id}/modifier`} className="mt-2 inline-block text-sm font-bold text-brand hover:underline">Modifier</Link>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {du > 0 && <button type="button" className="btn btn-primary btn-sm" onClick={() => void regler()}>✓ Marquer comme réglé</button>}
+          <Link to={`/admin/fiches/${f.id}/modifier`} className="text-sm font-bold text-brand hover:underline">Modifier</Link>
+        </div>
       </section>
 
       {view && <ImageViewer src={view.src} title={view.title || 'Image'} onClose={() => setView(null)} />}
