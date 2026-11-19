@@ -10,7 +10,7 @@ import { Chips, Confirm, ErrorBox, MultiChips, TagPicker, useToast } from '../..
 const today = todayLocal
 const blankVisite = (): Visite => ({ id: newId(), date: today(), motifs: [], vaccins: [], medicaments: [], rappel: '', note: '' })
 const blank = (): Fiche => ({
-  id: '', nom: '', prenom: '', age: '', telephone: '', adresse: '', animal: '', espece: '', precision: '', race: '',
+  id: '', nom: '', prenom: '', age: '', agressif: false, dus: '', dusNote: '', telephone: '', adresse: '', animal: '', espece: '', precision: '', race: '',
   sexe: '', sterilise: '', ageAnimal: '', naissance: '', poids: '', robe: '', puce: '', tatouage: '',
   antecedents: [], antecedentsNote: '', images: [], visites: [blankVisite()],
 })
@@ -62,7 +62,7 @@ function FicheForm({ isNew, initial, initialEdit, initialCreated }: { isNew: boo
   const [newIds, setNewIds] = useState<string[]>(initialCreated)
 
   const esp = getEspece(f.espece)
-  const set = (k: 'nom' | 'prenom' | 'age' | 'telephone' | 'adresse' | 'animal' | 'precision' | 'race' | 'sexe' | 'sterilise' | 'ageAnimal' | 'naissance' | 'poids' | 'robe' | 'puce' | 'tatouage' | 'antecedentsNote') => (v: string) => setF({ ...f, [k]: v })
+  const set = (k: 'nom' | 'prenom' | 'age' | 'telephone' | 'adresse' | 'animal' | 'precision' | 'race' | 'sexe' | 'sterilise' | 'ageAnimal' | 'naissance' | 'poids' | 'robe' | 'puce' | 'tatouage' | 'antecedentsNote' | 'dus' | 'dusNote') => (v: string) => setF({ ...f, [k]: v })
   const setEspece = (nom: string) => {
     const e = getEspece(nom)
     if (nom !== f.espece) setAutreRobe(false)
@@ -106,7 +106,6 @@ function FicheForm({ isNew, initial, initialEdit, initialCreated }: { isNew: boo
         <section className="card"><h2 className="mb-4 text-lg font-bold">Client</h2><div className="grid gap-3.5 sm:grid-cols-2">
           <Field id="nom" label="Nom" required autoFocus={isNew} value={f.nom} onChange={set('nom')} />
           <Field id="prenom" label="Prénom" value={f.prenom} onChange={set('prenom')} />
-          <Field id="age" label="Âge" inputMode="numeric" value={f.age} onChange={set('age')} />
           <Field id="tel" label="Téléphone" type="tel" value={f.telephone} onChange={set('telephone')} />
           <Field id="adr" label="Adresse" wide value={f.adresse} onChange={set('adresse')} />
         </div></section>
@@ -127,6 +126,10 @@ function FicheForm({ isNew, initial, initialEdit, initialCreated }: { isNew: boo
               {(autreRobe || (f.robe !== '' && !esp.robes.includes(f.robe))) && <input aria-label="Précisez la robe" className="input mt-3 animate-fade-up" placeholder="Décris la robe…" maxLength={60} value={f.robe} onChange={(e) => set('robe')(e.target.value)} />}
             </Group>
           )}
+          <label className={`sm:col-span-2 flex cursor-pointer items-center gap-3 rounded-lg border-2 p-3 font-bold transition-colors ${f.agressif ? 'border-red-600 bg-red-50 text-red-700' : 'border-brand-line'}`}>
+            <input type="checkbox" className="h-5 w-5 accent-red-600" checked={!!f.agressif} onChange={(e) => setF({ ...f, agressif: e.target.checked })} />
+            Animal agressif {f.agressif && '— un bandeau rouge sera affiché sur la fiche'}
+          </label>
           <div><p className="label">Sexe</p><Chips label="Sexe" options={['Mâle', 'Femelle']} value={f.sexe} onChange={set('sexe')} /></div>
           <div><p className="label">Stérilisé(e)</p><Chips label="Stérilisé" options={['Oui', 'Non']} value={f.sterilise} onChange={set('sterilise')} /></div>
           <div>
@@ -182,6 +185,15 @@ function FicheForm({ isNew, initial, initialEdit, initialCreated }: { isNew: boo
             <div className="mt-3"><label className="label" htmlFor={`n${v.id}`}>Observations / diagnostic (facultatif)</label><textarea id={`n${v.id}`} rows={2} className="input" value={v.note} onChange={(e) => upV(v.id, { note: e.target.value })} /></div>
           </div>
         ))}
+      </section>
+
+      <section className="card mt-6">
+        <h2 className="mb-1 text-lg font-bold">Dus (argent à payer)</h2>
+        <p className="mb-4 text-sm text-brand-muted">Laisse vide si le client ne doit rien.</p>
+        <div className="grid gap-3.5 sm:grid-cols-[200px_1fr]">
+          <Field id="dus" label="Montant dû (DA)" inputMode="decimal" value={f.dus ?? ''} onChange={set('dus')} />
+          <Field id="dusnote" label="Remarque (facultatif)" maxLength={500} placeholder="Ex : reste à payer de la chirurgie du 12/11" value={f.dusNote ?? ''} onChange={set('dusNote')} />
+        </div>
       </section>
 
       <datalist id="dl-motifs">{[...motifs, ...motifsMore].map((o) => <option key={o} value={o} />)}</datalist>

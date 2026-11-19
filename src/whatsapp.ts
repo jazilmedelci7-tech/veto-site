@@ -21,6 +21,7 @@ export function waLink(tel: string, text: string): string | null {
   return n ? `https://wa.me/${n}?text=${encodeURIComponent(text)}` : null
 }
 
+const qui = site.signature ?? site.nom
 const contacts = () => cabinets.map((c) => `${c.court} : ${c.telephone}`).join(' · ')
 
 /** Message de rappel (vaccin, vermifuge…) pour la dernière visite qui contient un rappel. */
@@ -31,7 +32,7 @@ export function rappelMessage(f: Fiche): string {
     ? v.vaccins.map((x) => x.replace(/\s*\(.*\)/, '')).join(', ')
     : v.motifs.filter((m) => motifsRappel.includes(m)).join(', ').toLowerCase() || 'rappel'
   const verbe = rappelState(v.rappel) === 'late' ? 'était prévu' : 'est prévu'
-  return `Bonjour ${`${f.prenom} ${f.nom}`.trim()}, ici ${site.nom}.\nLe rappel (${quoi}) de ${f.animal} ${verbe} le ${fmt(v.rappel)}.\nPour prendre rendez-vous : ${contacts()}.\nÀ bientôt !`
+  return `Bonjour ${`${f.prenom} ${f.nom}`.trim()}, ici ${qui}.\nLe rappel (${quoi}) de ${f.animal} ${verbe} le ${fmt(v.rappel)}.\nPour prendre rendez-vous : ${contacts()}.\nÀ bientôt !`
 }
 
 /** Message pour une demande de rendez-vous, selon son statut. */
@@ -40,7 +41,7 @@ export function rdvMessage(r: Rdv): string {
   // L'adresse n'est envoyée que si elle est complète (pas de texte entre crochets à confirmer)
   const lieu = c ? ` au cabinet${cabinets.length > 1 ? ` ${c.court}` : ''}${c.adresse.includes('[') ? '' : ` (${c.adresse})`}` : ''
   const date = r.date ? ` le ${fmt(r.date)}` : ''
-  const hello = `Bonjour ${r.nom}, ici ${site.nom}.`
+  const hello = `Bonjour ${r.nom}, ici ${qui}.`
   if (r.statut === 'confirmée') {
     const h = c ? `\nHoraires : ${c.horaires.map((x) => `${x.jours} ${x.heures}`).join(', ')}.` : ''
     return `${hello}\nVotre rendez-vous pour ${r.animal}${date}${lieu} est confirmé.${h}\nÀ bientôt !`

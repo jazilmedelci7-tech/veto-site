@@ -5,6 +5,7 @@ export interface Fiche {
   id: string; nom: string; prenom: string; age: string; telephone: string; adresse: string
   animal: string; espece: string; precision: string; race: string; sexe: string; sterilise: string
   ageAnimal: string; naissance: string; poids: string; robe: string; puce: string; tatouage: string
+  agressif?: boolean; dus?: string; dusNote?: string
   antecedents: string[]; antecedentsNote: string; images: FicheImage[]; visites: Visite[]; createdAt?: string
 }
 export interface Rdv {
@@ -79,3 +80,15 @@ export function ageFrom(naissance: string, today = todayLocal()): string {
 
 /** Âge à afficher pour une fiche : calculé depuis la naissance si elle est connue, sinon l'ancien texte saisi à la main. */
 export const ageAnimalLabel = (f: Pick<Fiche, 'naissance' | 'ageAnimal'>) => (f.naissance ? ageFrom(f.naissance) : f.ageAnimal) || ''
+
+const chiffres = (t: string) => (t ?? '').replace(/\D/g, '')
+const clean = (t: string) => (t ?? '').trim().toLowerCase()
+/** Deux fiches sont du même client : même nom et prénom, et même téléphone (ou aucun téléphone renseigné). */
+export function memeClient(a: Fiche, b: Fiche): boolean {
+  if (clean(a.nom) !== clean(b.nom) || clean(a.prenom) !== clean(b.prenom)) return false
+  const ta = chiffres(a.telephone), tb = chiffres(b.telephone)
+  return ta === tb || (!!ta && !!tb && (ta.endsWith(tb.slice(-9)) && tb.length >= 9))
+}
+/** Montant dû en nombre (0 si vide ou invalide). */
+export const montantDu = (f: Pick<Fiche, 'dus'>) => { const n = parseFloat(String(f.dus ?? '').replace(',', '.')); return Number.isFinite(n) && n > 0 ? n : 0 }
+export const fmtDA = (n: number) => `${n.toLocaleString('fr-FR')} DA`

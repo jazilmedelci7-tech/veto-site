@@ -2,7 +2,7 @@ import { ReactNode, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { errMsg } from '../../api'
 import { ImageViewer, imgUrl } from '../../components/FicheImages'
-import { ageAnimalLabel, Fiche, fmt, nextRappel, rappelState } from '../../data'
+import { ageAnimalLabel, Fiche, fmt, fmtDA, memeClient, montantDu, nextRappel, rappelState } from '../../data'
 import { WhatsAppButton } from '../../components/WhatsAppButton'
 import { useStore } from '../../store'
 import { rappelMessage } from '../../whatsapp'
@@ -46,6 +46,8 @@ export default function FicheView() {
   const rappel = nextRappel(f)
   const lastRappelDate = [...f.visites].filter((v) => v.rappel).sort((a, b) => b.date.localeCompare(a.date))[0]?.date
   const remove = async () => { setAsk(false); try { await deleteFiche(f.id); toast('Fiche supprimée'); nav('/admin') } catch (e) { toast(errMsg(e)) } }
+  const autres = fiches.filter((x) => x.id !== f.id && memeClient(f, x))
+  const du = montantDu(f)
   const espece = f.espece === 'Autre' && f.precision ? f.precision : f.espece
 
   return (
@@ -64,6 +66,12 @@ export default function FicheView() {
         </div>
       </div>
 
+      {f.agressif && (
+        <div role="alert" className="mb-6 flex items-center gap-3 rounded-xl bg-red-600 p-4 text-lg font-extrabold uppercase tracking-wide text-white shadow-lg ring-4 ring-red-200">
+          <span aria-hidden="true" className="text-3xl">⚠</span> Animal agressif : attention à la manipulation
+        </div>
+      )}
+
       {rappel && rappelState(rappel) !== 'ok' && (
         <div className={`mb-6 rounded-xl border p-4 text-sm font-semibold ${rappelState(rappel) === 'late' ? 'border-red-200 bg-red-50 text-red-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
           Prochain rappel : {fmt(rappel)}{rappelState(rappel) === 'late' ? ' (date dépassée)' : ''}
@@ -71,13 +79,30 @@ export default function FicheView() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Table title="Client" rows={[['Nom', `${f.nom} ${f.prenom}`.trim()], ['Âge', f.age ? `${f.age} ans` : ''], ['Téléphone', f.telephone], ['Adresse', f.adresse]]} />
+        <Table title="Client" rows={[['Nom', `${f.nom} ${f.prenom}`.trim()], ['Téléphone', f.telephone], ['Adresse', f.adresse]]} />
         <Table title="Animal" rows={[
           ['Nom', f.animal], ['Espèce', espece], ['Race', f.race], ['Robe', f.robe], ['Sexe', f.sexe],
           ['Stérilisé(e)', f.sterilise], ['Âge', f.naissance ? `${ageAnimalLabel(f)} (né(e) le ${fmt(f.naissance)})` : ageAnimalLabel(f)], ['Poids', f.poids ? `${f.poids} kg` : ''],
           ['N° de puce', f.puce], ['N° de tatouage', f.tatouage], ['Prochain rappel', rappel ? <RappelBadge date={rappel} /> : ''],
         ]} />
       </div>
+
+      <section className="card mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-bold">Animaux de ce client</h2>
+          <Link to="/admin/fiches/nouvelle" state={{ nom: f.nom, prenom: f.prenom, telephone: f.telephone, adresse: f.adresse }} className="btn btn-ghost btn-sm">+ Ajouter un autre animal</Link>
+        </div>
+        {autres.length === 0 ? <p className="mt-2 text-sm text-brand-muted">Aucun autre animal pour ce client.</p> : (
+          <ul className="mt-2 text-sm">
+            {autres.map((x) => (
+              <li key={x.id} className="flex items-center justify-between gap-3 border-t border-brand-line py-2 first:border-0">
+                <span><Link to={`/admin/fiches/${x.id}`} className="font-bold hover:underline">{x.animal}</Link> <span className="text-brand-muted">{[x.espece, x.race].filter(Boolean).join(' · ')}</span>{x.agressif && <span className="ml-2 rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">AGRESSIF</span>}</span>
+                <Link to={`/admin/fiches/${x.id}`} className="btn btn-ghost btn-sm">Ouvrir</Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {(f.antecedents.length > 0 || f.antecedentsNote) && (
         <section className="card mt-6">
@@ -131,6 +156,13 @@ export default function FicheView() {
           </div>
         </section>
       )}
+
+      <section className={`card mt-6 ${du ? 'border-amber-400 bg-amber-50' : ''}`}>
+        <h2 className="mb-1 text-base font-bold">Dus</h2>
+        {du ? <p className="text-lg font-extrabold text-amber-900">Reste à payer : {fmtDA(du)}</p> : <p className="text-sm text-brand-muted">Le client ne doit rien.</p>}
+        {f.dusNote && <p className="mt-1 whitespace-pre-line text-sm text-brand-muted">{f.dusNote}</p>}
+        <Link to={`/admin/fiches/${f.id}/modifier`} className="mt-2 inline-block text-sm font-bold text-brand hover:underline">Modifier</Link>
+      </section>
 
       {view && <ImageViewer src={view.src} title={view.title || 'Image'} onClose={() => setView(null)} />}
       <Confirm open={ask} title="Supprimer cette fiche ?" text={`La fiche de ${f.nom} ${f.prenom} (${f.animal}) sera définitivement supprimée.`} onCancel={() => setAsk(false)} onConfirm={() => void remove()} />

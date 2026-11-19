@@ -14,6 +14,7 @@ const horaires = [
 const config: SiteConfig = {
   titre: "Docteur Vétérinaire – Belcourt et Oued Romane",
   nom: "Docteur Vétérinaire",
+  signature: "le cabinet vétérinaire du Dr Medelci",
   ville: "Alger",
   accroche: "Des soins attentionnés pour vos compagnons",
   indicatifPays: "213",

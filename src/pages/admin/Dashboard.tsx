@@ -175,6 +175,11 @@ export default function Dashboard() {
               <span>
                 <span className="text-brand-muted md:hidden">Animal : </span>
                 {f.animal}
+                {f.agressif && (
+                  <span className="ml-2 rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                    AGRESSIF
+                  </span>
+                )}
                 {f.race && (
                   <span className="block text-sm text-brand-muted">
                     {f.race}
