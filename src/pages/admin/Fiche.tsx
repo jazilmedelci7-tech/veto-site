@@ -1,22 +1,22 @@
 import { FormEvent, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { antecedentsMore, antecedentsOptions, especes, getEspece, medicamentsMore, medicamentsOptions, motifs, motifsMore, motifsRappel, motifsVaccin } from '../../animals'
+import { antecedentsMore, antecedentsOptions, especes, getEspece, medicamentsMore, medicamentsOptions, motifs, motifsMore, motifsVaccin } from '../../animals'
 import { errMsg } from '../../api'
 import { FicheImages, Pending } from '../../components/FicheImages'
-import { addToDate, ageFrom, Fiche, fmt, newId, todayLocal, Visite } from '../../data'
+import { addToDate, ageFrom, Fiche, fmt, newId, Rappel, todayLocal, Visite } from '../../data'
 import { useStore } from '../../store'
 import { Chips, Confirm, ErrorBox, MultiChips, TagPicker, useToast } from '../../ui'
 
 const today = todayLocal
-const blankVisite = (): Visite => ({ id: newId(), date: today(), motifs: [], vaccins: [], medicaments: [], rappel: '', note: '' })
+const blankVisite = (): Visite => ({ id: newId(), date: today(), motifs: [], vaccins: [], medicaments: [], rappel: '', rappels: [], note: '' })
 const blank = (): Fiche => ({
   id: '', nom: '', prenom: '', age: '', agressif: false, dus: '', dusNote: '', telephone: '', adresse: '', animal: '', espece: '', precision: '', race: '',
   sexe: '', sterilise: '', ageAnimal: '', naissance: '', poids: '', robe: '', puce: '', tatouage: '',
   antecedents: [], antecedentsNote: '', images: [], visites: [blankVisite()],
 })
 /** Fiches enregistrées avant l'ajout de certains champs : on complète avec des valeurs vides. */
-const isEmptyVisite = (v: Visite) => !v.motifs.length && !v.vaccins.length && !v.medicaments.length && !v.rappel && !v.note.trim()
-const normalize = (f: Fiche): Fiche => ({ ...blank(), ...f, visites: (f.visites ?? []).map((v) => ({ ...v, medicaments: v.medicaments ?? [], rappel: v.rappel ?? '' })) })
+const isEmptyVisite = (v: Visite) => !v.motifs.length && !v.vaccins.length && !v.medicaments.length && !v.rappel && !(v.rappels ?? []).length && !v.note.trim()
+const normalize = (f: Fiche): Fiche => ({ ...blank(), ...f, visites: (f.visites ?? []).map((v) => ({ ...v, medicaments: v.medicaments ?? [], rappel: v.rappel ?? '', rappels: v.rappels ?? [] })) })
 
 function Field({ id, label, value, onChange, wide, required, type = 'text', ...rest }: { id: string; label: string; value: string; onChange: (v: string) => void; wide?: boolean; required?: boolean; type?: string } & Record<string, unknown>) {
   return (
@@ -89,7 +89,9 @@ function FicheForm({ isNew, initial, initialEdit, initialCreated }: { isNew: boo
   }
   const remove = async () => { setAsk(false); try { await deleteFiche(f.id); toast('Fiche supprimée'); nav('/admin') } catch (err) { toast(errMsg(err)) } }
   const showVaccins = (v: Visite) => v.motifs.some((m) => motifsVaccin.includes(m)) && (esp?.vaccins.length ?? 0) > 0
-  const showRappel = (v: Visite) => v.motifs.some((m) => motifsRappel.includes(m))
+  /** Rappels d'une visite, y compris l'ancien rappel unique (il devient un rappel normal dès qu'on modifie la liste). */
+  const rappelsDe = (v: Visite): Rappel[] => [...(v.rappel ? [{ id: `old${v.id}`, date: v.rappel, libelle: '', fait: false }] : []), ...(v.rappels ?? [])]
+  const setRapp = (v: Visite, l: Rappel[]) => upV(v.id, { rappels: l, rappel: '' })
 
   return (
     <form onSubmit={submit} className="animate-fade-in">
@@ -166,20 +168,24 @@ function FicheForm({ isNew, initial, initialEdit, initialCreated }: { isNew: boo
               <button type="button" className="btn btn-danger btn-sm" onClick={() => { setF({ ...f, visites: f.visites.filter((x) => x.id !== v.id) }); setEditIds(editIds.filter((x) => x !== v.id)) }}>{newIds.includes(v.id) ? 'Retirer cette visite' : 'Supprimer cette visite'}</button>
             </div>
             <p className="label">Motif(s) / diagnostic</p>
-            <TagPicker label="Motifs de la visite" options={motifs} more={motifsMore} sharedList="dl-motifs" placeholder="Écrire un motif ou une maladie…" value={v.motifs} onChange={(m) => upV(v.id, { motifs: m, vaccins: m.some((x) => motifsVaccin.includes(x)) ? v.vaccins : [], rappel: m.some((x) => motifsRappel.includes(x)) ? v.rappel : '' })} />
+            <TagPicker label="Motifs de la visite" options={motifs} more={motifsMore} sharedList="dl-motifs" placeholder="Écrire un motif ou une maladie…" value={v.motifs} onChange={(m) => upV(v.id, { motifs: m, vaccins: m.some((x) => motifsVaccin.includes(x)) ? v.vaccins : [] })} />
             {showVaccins(v) && <div className="mt-3 animate-fade-up"><p className="label">Vaccin(s) effectué(s)</p><MultiChips label="Vaccins" options={esp!.vaccins} value={v.vaccins} onChange={(x) => upV(v.id, { vaccins: x })} /></div>}
-            {showRappel(v) && (
-              <div className="mt-3 animate-fade-up">
-                <label className="label" htmlFor={`r${v.id}`}>Prochain rappel (facultatif)</label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input id={`r${v.id}`} type="date" className="input w-auto" value={v.rappel} onChange={(e) => upV(v.id, { rappel: e.target.value })} />
-                  {([['3 semaines', { days: 21 }], ['1 mois', { months: 1 }], ['6 mois', { months: 6 }], ['1 an', { months: 12 }]] as const).map(([l, add]) => (
-                    <button key={l} type="button" className="btn btn-ghost btn-sm" onClick={() => upV(v.id, { rappel: addToDate(v.date || today(), add) })}>+ {l}</button>
+            <div className="mt-3">
+              <p className="label">Rappels à faire (facultatif)</p>
+              {rappelsDe(v).map((r) => (
+                <div key={r.id} className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-brand-line p-2">
+                  <input aria-label="Nom du rappel" list="dl-rappels" className="input w-44" placeholder="Nom (ex : CRP-RH)" value={r.libelle} onChange={(e) => setRapp(v, rappelsDe(v).map((x) => (x.id === r.id ? { ...x, libelle: e.target.value } : x)))} />
+                  <input aria-label="Date du rappel" type="date" className="input w-auto" value={r.date} onChange={(e) => setRapp(v, rappelsDe(v).map((x) => (x.id === r.id ? { ...x, date: e.target.value } : x)))} />
+                  {([['3 sem.', { days: 21 }], ['1 mois', { months: 1 }], ['6 mois', { months: 6 }], ['1 an', { months: 12 }]] as const).map(([l, add]) => (
+                    <button key={l} type="button" className="btn btn-ghost btn-sm" onClick={() => setRapp(v, rappelsDe(v).map((x) => (x.id === r.id ? { ...x, date: addToDate(v.date || today(), add) } : x)))}>+ {l}</button>
                   ))}
-                  {v.rappel && <button type="button" className="btn btn-ghost btn-sm" onClick={() => upV(v.id, { rappel: '' })}>Effacer</button>}
+                  <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={!!r.fait} onChange={(e) => setRapp(v, rappelsDe(v).map((x) => (x.id === r.id ? { ...x, fait: e.target.checked } : x)))} /> Fait</label>
+                  <button type="button" className="btn btn-danger btn-sm" onClick={() => setRapp(v, rappelsDe(v).filter((x) => x.id !== r.id))}>Retirer</button>
                 </div>
-              </div>
-            )}
+              ))}
+              <datalist id="dl-rappels">{[...(esp?.vaccins ?? []), 'CRP-RH', 'CRP', 'Vermifuge'].map((x) => <option key={x} value={x} />)}</datalist>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRapp(v, [...rappelsDe(v), { id: newId(), date: '', libelle: v.vaccins[0] ?? '', fait: false }])}>+ Ajouter un rappel</button>
+            </div>
             <div className="mt-3"><p className="label">Médicaments prescrits</p>
               <TagPicker label="Médicaments prescrits" options={medicamentsOptions} more={medicamentsMore} sharedList="dl-meds" value={v.medicaments} onChange={(m) => upV(v.id, { medicaments: m })} placeholder="Nom et dose, ex : Amoxicilline 250 mg, 2×/jour, 7 jours" /></div>
             <div className="mt-3"><label className="label" htmlFor={`n${v.id}`}>Observations / diagnostic (facultatif)</label><textarea id={`n${v.id}`} rows={2} className="input" value={v.note} onChange={(e) => upV(v.id, { note: e.target.value })} /></div>

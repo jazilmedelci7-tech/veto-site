@@ -2,7 +2,7 @@ import { ReactNode, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { errMsg } from '../../api'
 import { ImageViewer, imgUrl } from '../../components/FicheImages'
-import { ageAnimalLabel, Fiche, fmt, fmtDA, memeClient, montantDu, nextRappel, rappelState, todayLocal } from '../../data'
+import { ageAnimalLabel, Fiche, fmt, fmtDA, memeClient, montantDu, nextRappel, rappelFait, rappelsActifs, rappelState, todayLocal } from '../../data'
 import { WhatsAppButton } from '../../components/WhatsAppButton'
 import { useStore } from '../../store'
 import { rappelMessage } from '../../whatsapp'
@@ -44,7 +44,8 @@ export default function FicheView() {
   const visites = [...f.visites].sort((a, b) => b.date.localeCompare(a.date))
   const shown = all ? visites : visites.slice(0, 5)
   const rappel = nextRappel(f)
-  const lastRappelDate = [...f.visites].filter((v) => v.rappel).sort((a, b) => b.date.localeCompare(a.date))[0]?.date
+  const actifs = rappelsActifs(f)
+  const marquerFait = async (a: (typeof actifs)[number]) => { try { await saveFiche(rappelFait(f, a), false); toast('Rappel marqué comme fait') } catch (e) { toast(errMsg(e)) } }
   const remove = async () => { setAsk(false); try { await deleteFiche(f.id); toast('Fiche supprimée'); nav('/admin') } catch (e) { toast(errMsg(e)) } }
   const autres = fiches.filter((x) => x.id !== f.id && memeClient(f, x))
   const du = montantDu(f)
@@ -75,9 +76,18 @@ export default function FicheView() {
         </div>
       )}
 
-      {rappel && rappelState(rappel) !== 'ok' && (
-        <div className={`mb-6 rounded-xl border p-4 text-sm font-semibold ${rappelState(rappel) === 'late' ? 'border-red-200 bg-red-50 text-red-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
-          Prochain rappel : {fmt(rappel)}{rappelState(rappel) === 'late' ? ' (date dépassée)' : ''}
+      {actifs.length > 0 && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="mb-2 font-extrabold">Rappels à faire</p>
+          <ul className="grid gap-2">
+            {actifs.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold">{a.libelle}</span><RappelBadge date={a.date} />
+                <WhatsAppButton tel={f.telephone} text={rappelMessage(f, a)} label="Prévenir" className="py-1.5 text-xs" />
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => marquerFait(a)}>✓ Fait</button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -132,8 +142,9 @@ export default function FicheView() {
               <span className="grid gap-0.5">
                 {v.vaccins.length > 0 && <span><b className="text-brand-muted">Vaccin :</b> {plain(v.vaccins)}</span>}
                 {v.medicaments.length > 0 && <span><b className="text-brand-muted">Médicaments :</b> {plain(v.medicaments)}</span>}
-                {v.rappel && <span><b className="text-brand-muted">Rappel :</b> <RappelBadge date={v.rappel} plain={v.rappel !== rappel || v.date !== lastRappelDate} /></span>}
-                {!v.vaccins.length && !v.medicaments.length && !v.rappel && <span className="text-brand-muted">—</span>}
+                {(v.rappels ?? []).map((r) => <span key={r.id}><b className="text-brand-muted">Rappel {r.libelle || ''} :</b> {r.fait ? <span className="text-brand-muted">{fmt(r.date)} · fait</span> : <RappelBadge date={r.date} plain={!actifs.some((a) => a.id === r.id)} />}</span>)}
+                {v.rappel && <span><b className="text-brand-muted">Rappel :</b> <RappelBadge date={v.rappel} plain={!actifs.some((a) => a.id === `ancien:${v.id}`)} /></span>}
+                {!v.vaccins.length && !v.medicaments.length && !v.rappel && !(v.rappels ?? []).length && <span className="text-brand-muted">—</span>}
               </span>
               <span className="whitespace-pre-line text-brand-muted">{v.note || '—'}</span>
               <Link to={`/admin/fiches/${f.id}/modifier?visite=${v.id}`} className="btn btn-ghost btn-sm mt-1 justify-self-start md:mt-0 md:justify-self-end">Modifier</Link>

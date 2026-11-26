@@ -1,6 +1,8 @@
+import { motifsRappel } from './animals'
 export const imageTypes = ['Radiographie', 'Échographie', 'Analyse', 'Photo', 'Autre']
 export interface FicheImage { id: string; file: string; type: string; legende: string; date: string }
-export interface Visite { id: string; date: string; motifs: string[]; vaccins: string[]; medicaments: string[]; rappel: string; note: string }
+export interface Rappel { id: string; date: string; libelle: string; fait?: boolean }
+export interface Visite { id: string; date: string; motifs: string[]; vaccins: string[]; medicaments: string[]; rappel: string; rappels?: Rappel[]; note: string }
 export interface Fiche {
   id: string; nom: string; prenom: string; age: string; telephone: string; adresse: string
   animal: string; espece: string; precision: string; race: string; sexe: string; sterilise: string
@@ -37,8 +39,32 @@ export function addToDate(date: string, add: { days?: number; months?: number })
   return `${r.getUTCFullYear()}-${two(r.getUTCMonth() + 1)}-${two(r.getUTCDate())}`
 }
 
-/** Prochain rappel d'une fiche : celui de la dernière visite qui en contient un. */
-export const nextRappel = (f: Fiche) => [...f.visites].filter((v) => v.rappel).sort((a, b) => b.date.localeCompare(a.date))[0]?.rappel ?? ''
+/** Nom d'un rappel quand le vétérinaire n'en a pas écrit : les vaccins de la visite, sinon ses motifs. */
+const libelleVisite = (v: Visite) =>
+  v.vaccins.length ? v.vaccins.map((x) => x.replace(/\s*\(.*\)/, '')).join(', ') : v.motifs.filter((m) => motifsRappel.includes(m)).join(', ').toLowerCase() || 'rappel'
+
+export interface RappelActif { id: string; date: string; libelle: string; visite: Visite; ancien: boolean }
+
+/**
+ * Rappels encore à faire d'une fiche, du plus proche au plus lointain : tous ceux qui ne sont pas « faits »,
+ * plus l'ancien rappel unique (fiches d'avant) tant qu'aucune visite plus récente n'a de rappel.
+ */
+export function rappelsActifs(f: Fiche): RappelActif[] {
+  const out: RappelActif[] = []
+  for (const v of f.visites) for (const r of v.rappels ?? []) if (r.date && !r.fait) out.push({ id: r.id, date: r.date, libelle: r.libelle.trim() || libelleVisite(v), visite: v, ancien: false })
+  const vl = [...f.visites].filter((v) => v.rappel).sort((a, b) => b.date.localeCompare(a.date))[0]
+  if (vl && !f.visites.some((w) => w.date > vl.date && (w.rappel || (w.rappels ?? []).length))) out.push({ id: `ancien:${vl.id}`, date: vl.rappel, libelle: libelleVisite(vl), visite: vl, ancien: true })
+  return out.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** Date du prochain rappel d'une fiche (le plus proche), ou ''. */
+export const nextRappel = (f: Fiche) => rappelsActifs(f)[0]?.date ?? ''
+
+/** La fiche avec ce rappel marqué comme « fait ». */
+export const rappelFait = (f: Fiche, a: RappelActif): Fiche => ({
+  ...f,
+  visites: f.visites.map((v) => (v.id !== a.visite.id ? v : a.ancien ? { ...v, rappel: '' } : { ...v, rappels: (v.rappels ?? []).map((r) => (r.id === a.id ? { ...r, fait: true } : r)) })),
+})
 
 /** « late » : date dépassée, « soon » : dans les 30 jours, « ok » : plus tard. */
 export function rappelState(date: string): 'late' | 'soon' | 'ok' | '' {
@@ -48,19 +74,19 @@ export function rappelState(date: string): 'late' | 'soon' | 'ok' | '' {
   return date <= addToDate(today, { days: 30 }) ? 'soon' : 'ok'
 }
 
-export interface RappelItem { fiche: Fiche; visite: Visite; date: string; jours: number; etat: 'late' | 'soon' | 'ok' }
+export interface RappelItem { fiche: Fiche; visite: Visite; date: string; jours: number; etat: 'late' | 'soon' | 'ok'; libelle: string; actif: RappelActif }
 
-/** Rappels à venir ou en retard (dernière visite qui en contient un, pour chaque fiche), du plus urgent au moins urgent. */
+/** Rappels à venir ou en retard (un par rappel, pas un par fiche), du plus urgent au moins urgent. */
 export function listRappels(fiches: Fiche[], maxJours = 30): RappelItem[] {
   const today = todayLocal()
   const num = (s: string) => { const [y = 0, m = 1, d = 1] = s.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / 86400000) }
   const out: RappelItem[] = []
   for (const fiche of fiches) {
-    const visite = [...fiche.visites].filter((v) => v.rappel).sort((a, b) => b.date.localeCompare(a.date))[0]
-    if (!visite) continue
-    const jours = num(visite.rappel) - num(today)
-    if (jours > maxJours) continue
-    out.push({ fiche, visite, date: visite.rappel, jours, etat: jours < 0 ? 'late' : jours <= 30 ? 'soon' : 'ok' })
+    for (const actif of rappelsActifs(fiche)) {
+      const jours = num(actif.date) - num(today)
+      if (jours > maxJours) continue
+      out.push({ fiche, visite: actif.visite, date: actif.date, jours, etat: jours < 0 ? 'late' : jours <= 30 ? 'soon' : 'ok', libelle: actif.libelle, actif })
+    }
   }
   return out.sort((a, b) => a.jours - b.jours)
 }

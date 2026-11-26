@@ -9,6 +9,16 @@ const toJSON = {
   },
 }
 
+const rappelSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    date: { type: String, default: '' },
+    libelle: { type: String, default: '' },
+    fait: { type: Boolean, default: false },
+  },
+  { _id: false },
+)
+
 const visiteSchema = new Schema(
   {
     id: { type: String, required: true },
@@ -17,6 +27,7 @@ const visiteSchema = new Schema(
     vaccins: { type: [String], default: [] },
     medicaments: { type: [String], default: [] },
     rappel: { type: String, default: '' },
+    rappels: { type: [rappelSchema], default: [] },
     note: { type: String, default: '' },
   },
   { _id: false },

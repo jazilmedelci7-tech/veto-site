@@ -12,6 +12,8 @@ const required = (msg: string, max: number, min = 1) =>
 const str = (max: number) => z.string().trim().max(max).default('')
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide').or(z.literal('')).default('')
 
+const rappelVisite = z.object({ id: z.string().trim().min(1).max(40), date: day, libelle: str(100), fait: z.boolean().default(false) })
+
 const visite = z.object({
   id: z.string().trim().min(1).max(40),
   date: day,
@@ -19,6 +21,7 @@ const visite = z.object({
   vaccins: z.array(z.string().trim().max(100)).max(30).default([]),
   medicaments: z.array(z.string().trim().min(1).max(120)).max(40).default([]),
   rappel: day,
+  rappels: z.array(rappelVisite).max(20).default([]),
   note: str(2000),
 })
 

@@ -1,7 +1,6 @@
 import { cabinets } from './cabinets'
 import { site } from './site'
-import { motifsRappel } from './animals'
-import { Fiche, fmt, rappelState, Rdv } from './data'
+import { Fiche, fmt, rappelsActifs, RappelActif, rappelState, Rdv } from './data'
 
 /** Numéro au format international sans « + », ou null s'il n'est pas utilisable. Le pays vient du réglage indicatifPays du client. */
 export function waNumber(tel: string): string | null {
@@ -24,15 +23,18 @@ export function waLink(tel: string, text: string): string | null {
 const qui = site.signature ?? site.nom
 const contacts = () => cabinets.map((c) => `${c.court} : ${c.telephone}`).join(' · ')
 
-/** Message de rappel (vaccin, vermifuge…) pour la dernière visite qui contient un rappel. */
-export function rappelMessage(f: Fiche): string {
-  const v = [...f.visites].filter((x) => x.rappel).sort((a, b) => b.date.localeCompare(a.date))[0]
-  if (!v) return ''
-  const quoi = v.vaccins.length
-    ? v.vaccins.map((x) => x.replace(/\s*\(.*\)/, '')).join(', ')
-    : v.motifs.filter((m) => motifsRappel.includes(m)).join(', ').toLowerCase() || 'rappel'
-  const verbe = rappelState(v.rappel) === 'late' ? 'était prévu' : 'est prévu'
-  return `Bonjour ${`${f.prenom} ${f.nom}`.trim()}, ici ${qui}.\nLe rappel (${quoi}) de ${f.animal} ${verbe} le ${fmt(v.rappel)}.\nPour prendre rendez-vous : ${contacts()}.\nÀ bientôt !`
+/** Message de rappel : pour un rappel précis, ou pour tous les rappels à faire de la fiche s'il y en a plusieurs. */
+export function rappelMessage(f: Fiche, un?: RappelActif): string {
+  const items = un ? [un] : rappelsActifs(f)
+  if (!items.length) return ''
+  const debut = `Bonjour ${`${f.prenom} ${f.nom}`.trim()}, ici ${qui}.`
+  const fin = `Pour prendre rendez-vous : ${contacts()}.\nÀ bientôt !`
+  if (items.length === 1) {
+    const x = items[0]!
+    const verbe = rappelState(x.date) === 'late' ? 'était prévu' : 'est prévu'
+    return `${debut}\nLe rappel (${x.libelle}) de ${f.animal} ${verbe} le ${fmt(x.date)}.\n${fin}`
+  }
+  return `${debut}\nVoici les rappels de ${f.animal} :\n${items.map((x) => `• ${x.libelle} : le ${fmt(x.date)}`).join('\n')}\n${fin}`
 }
 
 /** Message pour une demande de rendez-vous, selon son statut. */

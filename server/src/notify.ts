@@ -38,7 +38,27 @@ export interface RappelDu {
   jours: number;
 }
 
-/** Rappels (dernière visite qui en contient un, comme sur le site) arrivant dans les prochains jours ou déjà en retard. */
+type VisiteRappels = {
+  id: string; date: string; motifs: string[]; vaccins: string[]; rappel: string
+  rappels?: { id: string; date: string; libelle: string; fait?: boolean | null }[]
+}
+type RappelActif = { key: string; date: string; libelle: string }
+
+/** Rappels encore à faire d'une fiche : tous ceux qui ne sont pas « faits », plus l'ancien rappel unique s'il est toujours le dernier. */
+function rappelsActifs(visites: VisiteRappels[]): RappelActif[] {
+  const libelleVisite = (v: VisiteRappels) =>
+    v.vaccins.length ? v.vaccins.map((x) => x.replace(/\s*\(.*\)/, "")).join(", ") : v.motifs.join(", ") || "rappel";
+  const out: RappelActif[] = [];
+  for (const v of visites)
+    for (const r of v.rappels ?? [])
+      if (r.date && !r.fait) out.push({ key: `${r.id}:${r.date}`, date: r.date, libelle: r.libelle.trim() || libelleVisite(v) });
+  const ancien = [...visites].filter((x) => x.rappel).sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (ancien && !visites.some((w) => w.date > ancien.date && (w.rappel || (w.rappels ?? []).length)))
+    out.push({ key: ancien.rappel, date: ancien.rappel, libelle: libelleVisite(ancien) });
+  return out;
+}
+
+/** Rappels (un par rappel, comme sur le site) arrivant dans les prochains jours ou déjà en retard. */
 export async function rappelsProches(): Promise<RappelDu[]> {
   const today = localDay();
   const fiches = await Fiche.find()
@@ -46,27 +66,22 @@ export async function rappelsProches(): Promise<RappelDu[]> {
     .limit(5000);
   const out: RappelDu[] = [];
   for (const f of fiches) {
-    const v = [...f.visites]
-      .filter((x) => x.rappel)
-      .sort((a, b) => b.date.localeCompare(a.date))[0];
-    if (!v) continue;
-    const jours = dayNumber(v.rappel) - dayNumber(today);
-    if (jours > config.notifyDaysBefore || jours < -14) continue; // trop loin, ou très ancien
-    const quoi = v.vaccins.length
-      ? v.vaccins.map((x) => x.replace(/\s*\(.*\)/, "")).join(", ")
-      : v.motifs.join(", ") || "rappel";
-    const quand =
-      jours === 0
-        ? "aujourd'hui"
-        : jours > 0
-          ? `dans ${jours} j`
-          : `en retard de ${-jours} j`;
-    const tel = f.telephone ? ` · ${f.telephone}` : "";
-    out.push({
-      key: `${f.id}:${v.rappel}`,
-      jours,
-      texte: `• ${f.animal} (${`${f.nom} ${f.prenom}`.trim()}) : ${quoi}, le ${fr(v.rappel)} (${quand})${tel}`,
-    });
+    for (const r of rappelsActifs(f.visites)) {
+      const jours = dayNumber(r.date) - dayNumber(today);
+      if (jours > config.notifyDaysBefore || jours < -14) continue; // trop loin, ou très ancien
+      const quand =
+        jours === 0
+          ? "aujourd'hui"
+          : jours > 0
+            ? `dans ${jours} j`
+            : `en retard de ${-jours} j`;
+      const tel = f.telephone ? ` · ${f.telephone}` : "";
+      out.push({
+        key: `${f.id}:${r.key}`,
+        jours,
+        texte: `• ${f.animal} (${`${f.nom} ${f.prenom}`.trim()}) : ${r.libelle}, le ${fr(r.date)} (${quand})${tel}`,
+      });
+    }
   }
   return out.sort((a, b) => a.jours - b.jours);
 }

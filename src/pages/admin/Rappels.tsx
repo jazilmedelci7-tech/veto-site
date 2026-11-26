@@ -13,12 +13,12 @@ function Section({ title, items, tone }: { title: string; items: RappelItem[]; t
     <section className="card mb-6 p-0">
       <h2 className={`px-4 py-3 text-base font-bold ${tone}`}>{title} ({items.length})</h2>
       <ul>
-        {items.map(({ fiche: f, visite: v, date, jours }) => (
-          <li key={f.id} className="grid gap-2 border-t border-brand-line px-4 py-3 text-sm md:grid-cols-[1.3fr_1.3fr_1fr_auto] md:items-center">
+        {items.map(({ fiche: f, date, jours, libelle, actif }) => (
+          <li key={`${f.id}${actif.id}`} className="grid gap-2 border-t border-brand-line px-4 py-3 text-sm md:grid-cols-[1.3fr_1.3fr_1fr_auto] md:items-center">
             <span><Link to={`/admin/fiches/${f.id}`} className="font-bold hover:underline">{f.animal}</Link><span className="block text-brand-muted">{`${f.nom} ${f.prenom}`.trim()}{f.telephone && ` · ${f.telephone}`}</span></span>
-            <span>{v.vaccins.length ? v.vaccins.join(', ') : v.motifs.join(', ') || 'Rappel'}</span>
+            <span>{libelle}</span>
             <span><b>{fmt(date)}</b><span className="block text-brand-muted">{quand(jours)}</span></span>
-            <span className="flex gap-2"><WhatsAppButton tel={f.telephone} text={rappelMessage(f)} /><Link to={`/admin/fiches/${f.id}`} className="btn btn-ghost btn-sm">Ouvrir</Link></span>
+            <span className="flex gap-2"><WhatsAppButton tel={f.telephone} text={rappelMessage(f, actif)} /><Link to={`/admin/fiches/${f.id}`} className="btn btn-ghost btn-sm">Ouvrir</Link></span>
           </li>
         ))}
       </ul>
